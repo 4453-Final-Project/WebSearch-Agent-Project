@@ -13,7 +13,7 @@ Confirm with: `which python` before next step (should be .venv path).
 `'pip install -U torch transformers accelerate huggingface_hub trl datasets peft`
 
 ## 3) Log into Hugging Face
-(you may need to create account if you haven't on [https://huggingface.co/](hugging face), and create a access token (click profile > Access Tokens))
+(you may need to create account if you haven't on [https://huggingface.co](hugging face), and create a access token (click profile > Access Tokens))
 
 `hf auth login`
 
