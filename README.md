@@ -1,4 +1,5 @@
 This should be straight forward for you guys. Just a download from hf and test.
+
 **NOTE:** Do not use *requirements.txt* yet, I haven't confirmed it works, stick to the line Tyler initially provided for required packages. Ask me on discord pm if any questions/problems - Shon Haskaj
 
 # Repository Structure:
