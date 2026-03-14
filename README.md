@@ -21,6 +21,8 @@ RL4453/
 ```
 
 # Getting Started:
+From here make sure that you are in some directory that is NOT the git repo, you will clone it later on in these steps when you run the model test.
+
 ## 1) Create and activate a virtual environment
 $ `python -m venv .venv`
 
