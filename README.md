@@ -59,3 +59,4 @@ Assuming you have downloaded the correct model run this to test:
 
 $ `python scripts/test_model.py` 
 
+This will take some (possibly alot of) time to run locally.
