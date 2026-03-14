@@ -14,15 +14,11 @@ RL4453/
     │   ├── download_models.sh
     │   ├── download_models.ps1
     │   └── test_model.py
-    ├── src/
-    │   ├── agent/
-    │   ├── training/
-    │   ├── env/
-    │   └── utils/
-    ├── configs/
-    ├── logs/                   # ignored
-    ├── rollouts/               # ignored
-    └── checkpoints/            # ignored
+    └── src/
+        ├── agent/
+        ├── training/
+        ├── env/
+        └── utils/
 ```
 
 ## 1) Create and activate a virtual environment
