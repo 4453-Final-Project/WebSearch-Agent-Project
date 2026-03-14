@@ -39,5 +39,5 @@ print(tokenizer.decode(outputs[0], skip_special_tokens=True))
 ```
 
 ## 6) Run the test
-`python test_model.py` 
+$ `python test_model.py` 
 
