@@ -75,7 +75,7 @@ $ git clone https://github.com/4453-Final-Project/WebSearch-Agent-Project.git
 ### Run test
 $ `python scripts/test_model.py` 
 
-This will take some (possibly alot of) time to run locally.
+This will take some time to run locally (~2-10 minutes) do not interrupt the script.
 
 ### Example test output:
 
