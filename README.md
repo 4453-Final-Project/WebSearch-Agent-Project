@@ -1,6 +1,7 @@
 # Structure
 Conventions:
 
+```
 RL4453/
 ├── models/                     # local model weights (not tracked by git)
 │   └── Qwen2.5-3B-Instruct/
@@ -22,7 +23,7 @@ RL4453/
     ├── logs/                   # ignored
     ├── rollouts/               # ignored
     └── checkpoints/            # ignored
-
+```
 
 ## 1) Create and activate a virtual environment
 $ `python -m venv .venv`
