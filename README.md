@@ -7,7 +7,7 @@
 ### Activate venv (Mac/Linux):
 `source .venv/bin/activate`
 
-Confirm with: `which python'` before next step (should be .venv path).
+Confirm with: `which python` before next step (should be .venv path).
 
 ## 2) Install the packages you need
 `'pip install -U torch transformers accelerate huggingface_hub trl datasets peft`
