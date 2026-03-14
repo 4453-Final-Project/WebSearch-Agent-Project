@@ -26,7 +26,8 @@ With that step 4 is to download the `Qwen2.5-3B-Instruct` model from hf:
 
 $ `hf download Qwen/Qwen2.5-3B-Instruct --local-dir ./models/Qwen2.5-3B-Instruct`
 
-## 5) Create a quick test file called test_model.py with this inside:
+## 5) Quick Test 
+Create a python script called `test_model.py` with this inside:
 
 ```
 from transformers import AutoTokenizer, AutoModelForCausalLM
