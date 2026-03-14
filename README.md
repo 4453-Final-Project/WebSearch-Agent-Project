@@ -2,10 +2,10 @@
 
 ```
 RL4453/
-├── models/                     # local model weights (not tracked by git)
-│   └── Qwen2.5-3B-Instruct/
-├── .venv/                      # local Python environment
-└── WebSearch-Agent-Project/    # this repository
+├── models/                     # MAKE SURE THAT THIS IS A SIBLING DIRECTORY OF THE REPO
+│   └── Qwen2.5-3B-Instruct/    # THE MODEL
+├── .venv/                      # MAKE SURE THAT THIS IS A SIBLING DIRECTORY OF THE REPO
+└── WebSearch-Agent-Project/    # THE REPO
     ├── README.md
     ├── requirements.txt
     ├── .gitignore
