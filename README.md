@@ -49,7 +49,7 @@ Now for the model we have a couple options, but this is the reasoning. Qwen/Qwen
 
 [Qwen/Qwen2.5-3B-Instruct](https://huggingface.co/Qwen/Qwen2.5-3B-Instruct)
 
-With that step 4 is to download the `Qwen2.5-3B-Instruct` model from hf:
+With that, step 4 is to download the `Qwen2.5-3B-Instruct` model from hf:
 
 $ `hf download Qwen/Qwen2.5-3B-Instruct --local-dir ./models/Qwen2.5-3B-Instruct`
 
