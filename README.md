@@ -53,19 +53,9 @@ With that step 4 is to download the `Qwen2.5-3B-Instruct` model from hf:
 
 $ `hf download Qwen/Qwen2.5-3B-Instruct --local-dir ./models/Qwen2.5-3B-Instruct`
 
-## 5) Quick Test 
-Create a python script called `test_model.py` with this inside:
 
-```
-from transformers import AutoTokenizer, AutoModelForCausalLM
-model_path = "./models/Qwen2.5-3B-Instruct"
-tokenizer = AutoTokenizer.from_pretrained(model_path)
-model = AutoModelForCausalLM.from_pretrained(model_path, torch_dtype="auto", device_map="auto")
-inputs = tokenizer("Hello", return_tensors="pt").to(model.device)
-outputs = model.generate(**inputs, max_new_tokens=20)
-print(tokenizer.decode(outputs[0], skip_special_tokens=True))
-```
+## 5) Run a quick test
+Assuming you have downloaded the correct model run this to test:
 
-## 6) Run the test
-$ `python test_model.py` 
+$ `python scripts/test_model.py` 
 
