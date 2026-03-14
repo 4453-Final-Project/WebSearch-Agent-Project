@@ -2,78 +2,26 @@
 Conventions:
 
 RL4453/
-
-├── models/                         # local model weights (ignored by git)
-
+├── models/                     # local model weights (not tracked by git)
 │   └── Qwen2.5-3B-Instruct/
-
-│
-
-├── .venv/                          # local Python environment (ignored)
-
-│
-
-└── WebSearch-Agent-Project/        # ----------- THIS REPO ------------
-
-├── README.md
-
-├── requirements.txt
-
-├── .gitignore
-
-│
-
-├── scripts/                    # utilities and setup scripts
-
-│   ├── download_models.sh
-
-│   ├── download_models.ps1
-
-│   └── test_model.py
-
-│
-
-├── src/                        # main project code
-
-│   ├── agent/                  # web agent logic
-
-│   │   ├── agent.py
-
-│   │   └── policy.py
-
-│   │
-
-│   ├── training/               # RL training loops
-
-│   │   ├── ppo.py
-
-│   │   └── grpo.py
-
-│   │
-
-│   ├── env/                    # BrowserGym / WebArena wrappers
-
-│   │   └── browser_env.py
-
-│   │
-
-│   └── utils/
-
-│       └── helpers.py
-
-│
-
-├── configs/                    # experiment configs
-
-│   └── ppo_config.yaml
-
-│
-
-├── logs/                       # training logs (ignored)
-
-├── rollouts/                   # browser trajectories (ignored)
-
-└── checkpoints/                # LoRA / RL checkpoints (ignored)]
+├── .venv/                      # local Python environment
+└── WebSearch-Agent-Project/
+    ├── README.md
+    ├── requirements.txt
+    ├── .gitignore
+    ├── scripts/
+    │   ├── download_models.sh
+    │   ├── download_models.ps1
+    │   └── test_model.py
+    ├── src/
+    │   ├── agent/
+    │   ├── training/
+    │   ├── env/
+    │   └── utils/
+    ├── configs/
+    ├── logs/                   # ignored
+    ├── rollouts/               # ignored
+    └── checkpoints/            # ignored
 
 
 ## 1) Create and activate a virtual environment
