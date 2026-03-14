@@ -10,6 +10,10 @@ $ `source .venv/bin/activate`
 Confirm with: `which python` before next step (should be .venv path).
 
 ## 2) Install the packages you need
+$ `pip install -r requirements.txt`
+
+or
+
 $ `pip install -U torch transformers accelerate huggingface_hub trl datasets peft`
 
 ## 3) Log into Hugging Face
