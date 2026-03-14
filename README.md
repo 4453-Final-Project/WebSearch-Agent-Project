@@ -60,3 +60,23 @@ Assuming you have downloaded the correct model run this to test:
 $ `python scripts/test_model.py` 
 
 This will take some (possibly alot of) time to run locally.
+
+### Example test output:
+
+```
+.../asn/WebSearch-Agent-Project on main  λ python scripts/test_model.py
+General Specification/Expected output:
+Load the local tokenizer and model, run one short generation, and print the decoded result.
+User prompt: Hello
+Model path: /mnt/c/Users/shonh/RL4453/asn/models/Qwen2.5-3B-Instruct
+Status: loading tokenizer...
+Status: tokenizer loaded in 1.1s
+Status: loading model weights...
+Loading weights: 100%|████████████████████████████████████████████████████████████████| 434/434 [00:00<00:00, 965.12it/s]
+Status: model loaded in 2.1s
+Status: tokenizing prompt...
+Status: generating output...
+Status: generation finished in 48.5s
+Model Output: Hello, I'm trying to find a solution for the following problem. I have a dataset and I want
+Total time: 51.8s
+```
