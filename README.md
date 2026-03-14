@@ -1,5 +1,4 @@
-# Structure
-Conventions:
+# Repository Structure:
 
 ```
 RL4453/
@@ -21,6 +20,7 @@ RL4453/
         └── utils/
 ```
 
+# Getting Started:
 ## 1) Create and activate a virtual environment
 $ `python -m venv .venv`
 
