@@ -59,6 +59,14 @@ $ `hf download Qwen/Qwen2.5-3B-Instruct --local-dir ./models/Qwen2.5-3B-Instruct
 ## 5) Run a quick test
 Assuming you have downloaded the correct model run this to test:
 
+Clone the repo into your current directory to get the test script:
+
+### SSH Clone
+$ `git clone git@github.com:4453-Final-Project/WebSearch-Agent-Project.git`
+
+### or HTTP Clone
+$ `git clone https://github.com/4453-Final-Project/WebSearch-Agent-Project.git`
+
 $ `python scripts/test_model.py` 
 
 This will take some (possibly alot of) time to run locally.
