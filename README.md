@@ -59,6 +59,7 @@ With that, step 4 is to download the `Qwen2.5-3B-Instruct` model from hf:
 
 $ `hf download Qwen/Qwen2.5-3B-Instruct --local-dir ./models/Qwen2.5-3B-Instruct`
 
+or use the scripts made for downloading the models: `download_model.sh` (linux) and `download_model.ps1` (windows) 
 
 ## 5) Run a quick test
 Assuming you have downloaded the correct model run this to test:
