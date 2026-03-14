@@ -6,7 +6,7 @@ RL4453/
 ├── models/                     # local model weights (not tracked by git)
 │   └── Qwen2.5-3B-Instruct/
 ├── .venv/                      # local Python environment
-└── WebSearch-Agent-Project/
+└── WebSearch-Agent-Project/    # this repository
     ├── README.md
     ├── requirements.txt
     ├── .gitignore
