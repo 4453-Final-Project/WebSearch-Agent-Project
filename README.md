@@ -1,5 +1,4 @@
-This should be straight forward for you guys. Just a download from hf and test. Steps for dependencies, download, and test below :).
-
+**NOTE:** Make sure you are using ***python3.12*** otherwise browser gym will not work.
 **NOTE:** Do not use *requirements.txt* yet, I haven't confirmed it works, stick to the line Tyler initially provided for required packages. Ask me on discord pm if any questions/problems - Shon Haskaj
 
 # Repository Structure:
