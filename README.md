@@ -63,7 +63,7 @@ or use the scripts made for downloading the models: `scripts/download_models.sh`
 
 ## 5) Run a quick test
 
-First, run check_env.py and ensure no errors are being produced. If any are, follow the instructions to clear them before proceeding.
+First, run check_env.py and ensure no errors are being produced. If any are, follow the instructions to clear them before proceeding. You'll know you're ready when "Verification Complete" is printed out.
 
 Assuming you have downloaded the correct model run this to test:
 
