@@ -16,6 +16,11 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 # `WORKSPACE_DIR` is that shared parent directory.
 WORKSPACE_DIR = SCRIPT_DIR.parent.parent
 
+if str(WORKSPACE_DIR / "WebSearch-Agent-Project") not in sys.path:
+    sys.path.insert(0, str(SCRIPT_DIR.parent.parent))
+
+from src.utils.config import get_model_path  # noqa: E402
+
 
 def add_local_venv_site_packages() -> None:
     print("Status: searching for local virtualenv site-packages...", flush=True)
@@ -83,7 +88,7 @@ except ModuleNotFoundError as exc:
 # under the shared `models/` directory described in the README. Resolving this
 # path from `SCRIPT_DIR` ensures the script always targets the same local model
 # directory regardless of where the command is run from.
-MODEL_PATH = (SCRIPT_DIR / ".." / ".." / "models" / "Qwen2.5-3B-Instruct").resolve()
+MODEL_PATH = get_model_path()
 
 
 def main() -> None:
@@ -95,7 +100,7 @@ def main() -> None:
     if not MODEL_PATH.exists():
         raise FileNotFoundError(
             f"Local model directory not found: {MODEL_PATH}\n"
-            "Download it with: hf download Qwen/Qwen2.5-3B-Instruct "
+            "Download it with: hf download Qwen/Qwen2.5-3B-Instruct-GPTQ-Int4 "
             f"--local-dir {MODEL_PATH}"
         )
 

@@ -114,6 +114,7 @@ temp/
 .env
 .env.local
 .env.*.local
+scripts/webarena_env.local.sh
 
 #########################################################
 # Jupyter

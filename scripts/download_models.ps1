@@ -1,5 +1,5 @@
-$MODEL="Qwen/Qwen2.5-3B-Instruct"
-$TARGET_DIR="../models/Qwen2.5-3B-Instruct"
+$MODEL="Qwen/Qwen2.5-3B-Instruct-GPTQ-Int4"
+$TARGET_DIR=[System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot "..\..\models\Qwen2.5-3B-Instruct-GPTQ-Int4"))
 
 Write-Host "Downloading $MODEL ..."
 

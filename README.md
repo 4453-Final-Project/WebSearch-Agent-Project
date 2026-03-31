@@ -1,102 +1,137 @@
-**NOTE:** Make sure you are using ***python3.12*** otherwise browser gym will not work.
+## Overview
+This repository is the implementation workspace for the RL course project. The current Task 1 goal is simple: make the local runtime, GPTQ model path, and BrowserGym/WebArena connectivity reproducible with one verification script.
 
-**NOTE:** Do not use *requirements.txt* yet, I haven't confirmed it works, stick to the line Tyler initially provided for required packages. Ask me on discord pm if any questions/problems - Shon Haskaj
+The expected workspace layout is:
 
-# Repository Structure:
-
-```
-RL4453/
-├── models/                     # MAKE SURE THAT THIS IS A SIBLING DIRECTORY OF THE REPO
-│   └── Qwen2.5-3B-Instruct/    # THE MODEL
-├── .venv/                      # MAKE SURE THAT THIS IS A SIBLING DIRECTORY OF THE REPO
-└── WebSearch-Agent-Project/    # THE REPO
-    ├── README.md
-    ├── requirements.txt
-    ├── .gitignore
-    ├── scripts/
-    │   ├── download_models.sh
-    │   ├── download_models.ps1
-    │   └── test_model.py
-    └── src/
-        ├── agent/
-        ├── training/
-        ├── env/
-        └── utils/
+```text
+asn/
+|- .venv/
+|- models/
+|  `- Qwen2.5-3B-Instruct-GPTQ-Int4/
+`- WebSearch-Agent-Project/
 ```
 
-# Getting Started:
-From here make sure that you are in some directory that is NOT the git repo, you will clone it later on in these steps when you run the model test.
+Use Python 3.12. BrowserGym/WebArena is sensitive to interpreter and browser setup, so do not swap versions casually.
 
-## 1) Create and activate a virtual environment
-$ `python -m venv .venv`
+## Setup
+From `WebSearch-Agent-Project/`:
 
-### Activate venv (Windows):
-$ `.venv\Scripts\activate`
-
-### Activate venv (Mac/Linux):
-$ `source .venv/bin/activate`
-
-Confirm with: `which python` before next step (should be .venv path).
-
-## 2) Install the packages you need
-$ `pip install -r requirements.txt` // the below option is more reliable (I haven't tested requirements.txt yet, but we'll include this in submission)
-
-or
-
-$ `pip install -U torch transformers accelerate huggingface_hub trl datasets peft`
-
-## 3) Log into Hugging Face
-You may need to create account if you haven't on [hugging face](https://huggingface.co), and create an access token (Profile > Access Tokens)
-
-$ `hf auth login`
-
-## 4) Download the model locally
-Now for the model we have a couple options, but this is the reasoning. Qwen/Qwen3-<MODEL_SIZE> is already trained on web arena, but Qwen/Qwen2.5-<MODEL_SIZE> is not, so 2.5 is better for our purposes (as a baseline). Also, instruction fine tuning is important for our purposes (web search), as such we will be using: 
-
-[Qwen/Qwen2.5-3B-Instruct](https://huggingface.co/Qwen/Qwen2.5-3B-Instruct)
-
-With that, step 4 is to download the `Qwen2.5-3B-Instruct` model from hf:
-
-$ `hf download Qwen/Qwen2.5-3B-Instruct --local-dir ./models/Qwen2.5-3B-Instruct`
-
-or use the scripts made for downloading the models: `scripts/download_models.sh` (linux) and `scripts/download_models.ps1` (windows) 
-
-## 5) Run a quick test
-
-First, run check_env.py and ensure no errors are being produced. If any are, follow the instructions to clear them before proceeding. You'll know you're ready when "Verification Complete" is printed out.
-
-Assuming you have downloaded the correct model run this to test:
-
-### Clone
-```
-$ git clone git@github.com:4453-Final-Project/WebSearch-Agent-Project.git
-
-or
-
-$ git clone https://github.com/4453-Final-Project/WebSearch-Agent-Project.git
+```bash
+source ../.venv/bin/activate
+python --version
+which python
 ```
 
-### Run test
-$ `python scripts/test_model.py` 
+Expected:
 
-This will take some time to run locally (~2-10 minutes) do not interrupt the script.
-
-### Example test output:
-
+```text
+Python 3.12.x
 ```
-.../asn/WebSearch-Agent-Project on main  λ python scripts/test_model.py
-General Specification/Expected output:
-Load the local tokenizer and model, run one short generation, and print the decoded result.
-User prompt: Hello
-Model path: /mnt/c/Users/shonh/RL4453/asn/models/Qwen2.5-3B-Instruct
-Status: loading tokenizer...
-Status: tokenizer loaded in 1.1s
-Status: loading model weights...
-Loading weights: 100%|████████████████████████████████████████████████████████████████| 434/434 [00:00<00:00, 965.12it/s]
-Status: model loaded in 2.1s
-Status: tokenizing prompt...
-Status: generating output...
-Status: generation finished in 48.5s
-Model Output: Hello, I'm trying to find a solution for the following problem. I have a dataset and I want
-Total time: 51.8s
+
+Install dependencies:
+
+```bash
+pip install -r requirements.txt
 ```
+
+If `requirements.txt` is stale, the fallback install is:
+
+```bash
+pip install -U torch transformers accelerate huggingface_hub trl datasets peft browsergym browsergym-webarena playwright optimum gptqmodel
+```
+
+## Download The Model
+Task 1 targets the GPTQ checkpoint, not the full-precision checkpoint:
+
+- model: `Qwen/Qwen2.5-3B-Instruct-GPTQ-Int4`
+- local path: `../models/Qwen2.5-3B-Instruct-GPTQ-Int4`
+
+Download it directly:
+
+```bash
+hf download Qwen/Qwen2.5-3B-Instruct-GPTQ-Int4 --local-dir ../models/Qwen2.5-3B-Instruct-GPTQ-Int4
+```
+
+Or use the helper scripts:
+
+```bash
+bash scripts/download_models.sh
+```
+
+On Windows PowerShell:
+
+```powershell
+.\scripts\download_models.ps1
+```
+
+## Configure WebArena URLs
+Copy the example file and replace the placeholder hostname with your WebArena host:
+
+```bash
+cp .env.example .env
+```
+
+Then source it into your shell:
+
+```bash
+source .env
+```
+
+The required variables are:
+
+- `WA_SHOPPING`
+- `WA_SHOPPING_ADMIN`
+- `WA_REDDIT`
+- `WA_GITLAB`
+- `WA_WIKIPEDIA`
+- `WA_MAP`
+- `WA_HOMEPAGE`
+
+Optional:
+
+- `WA_FULL_RESET`
+
+## Task 1 Verification
+Run the full Task 1 environment check:
+
+```bash
+python scripts/check_env.py
+```
+
+The script checks, in order:
+
+1. Python 3.12 and the active interpreter path
+2. imports for `torch`, `transformers`, `browsergym`, `webarena`, `playwright`, `optimum`, and `gptqmodel`
+3. the local GPTQ model path and `config.json`
+4. required `WA_*` variables
+5. HTTP reachability of each WebArena URL
+6. Playwright Chromium launch
+7. `gym.make(f"browsergym/webarena.{TASK_ID}")`
+8. one `reset()` call with `headless=True`
+
+If any step fails, the script prints the exact failing component and exits non-zero.
+
+## Model Smoke Test
+Once Task 1 is green, you can run the narrow model smoke test:
+
+```bash
+python scripts/test_model.py
+```
+
+This script loads the local GPTQ model, runs one short generation, and prints the decoded text.
+
+## Troubleshooting
+Missing Playwright browsers:
+
+```bash
+playwright install chromium
+```
+
+Bad WebArena URLs:
+- make sure each `WA_*` URL points to the current host
+- if your EC2 instance does not have an Elastic IP, stop/start may change the public DNS name
+
+Failed BrowserGym reset:
+- verify every required `WA_*` variable is exported in the same shell where you run `check_env.py`
+- confirm the WebArena sites are reachable directly in a browser first
+- if the host is remote, restart the services on the host before retrying
