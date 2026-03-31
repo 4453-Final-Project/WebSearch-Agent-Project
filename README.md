@@ -62,6 +62,9 @@ $ `hf download Qwen/Qwen2.5-3B-Instruct --local-dir ./models/Qwen2.5-3B-Instruct
 or use the scripts made for downloading the models: `scripts/download_models.sh` (linux) and `scripts/download_models.ps1` (windows) 
 
 ## 5) Run a quick test
+
+First, run check_env.py and ensure no errors are being produced. If any are, follow the instructions to clear them before proceeding.
+
 Assuming you have downloaded the correct model run this to test:
 
 ### Clone
