@@ -22,11 +22,12 @@ def checkPackages():
     ]
     failed = False
 
+    installed = packages_distributions()
+    allPackages = list(installed.keys())
     for package in packages:
-        if package not in sys.modules:
+        if package not in allPackages:
             print(f"You do not have the {package} module")
             failed = True
-    
     if failed:
         raise RuntimeError(f"Pacakges missing, please install the required packages before continuing.")
 
