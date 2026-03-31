@@ -1,5 +1,6 @@
-import sys
+from importlib.metadata import packages_distributions
 import json
+import sys
 from pathlib import Path
 
 def checkVersion():
@@ -34,20 +35,21 @@ def checkPackages():
 def checkModel():
     # First check if the file format is as expected
     SCRIPT_DIR = Path(__file__).resolve().parent
-    MODEL_PATH = (SCRIPT_DIR / ".." / ".." / "models" / "Qwen2.5-3B-Instruct").resolve()
+    MODEL_PATH = (SCRIPT_DIR / ".." / ".." / "models" / "Qwen2.5-3B-Instruct-GPTQ-Int4").resolve()
     if not MODEL_PATH.exists():
         raise FileNotFoundError(
             f"Local model directory not found: {MODEL_PATH}\n"
-            "Download it with: hf download Qwen/Qwen2.5-3B-Instruct "
+            "Download it with: hf download Qwen/Qwen2.5-3B-Instruct-GPTQ-Int4 "
             f"--local-dir {MODEL_PATH}"
         )
-    # Next check if config.json has initalized correctly and the quant type is gtpq.
-    with open(f'{MODEL_PATH}/config.json') as f:
+    # Next check if config.json has initialized correctly and the quant type is gptq.
+    with open(f"{MODEL_PATH}/config.json") as f:
         data = json.load(f)
-        quant_config = data.get("model_type")
+        quant_config = data.get("quantization_config")
         if quant_config is None:
             raise RuntimeError(f"Quant config not found")
-        if quant_config.get("quant_type", "").lower() != "gptq":
+        quant_type = quant_config.get("quant_method", "").lower()
+        if quant_type != "gptq":
             raise RuntimeError(f"ERROR: Expected gptq but got '{quant_type}'")
 def main():
     checkVersion()
