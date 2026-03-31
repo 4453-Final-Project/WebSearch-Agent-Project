@@ -52,4 +52,5 @@ def main():
     checkVersion()
     checkPackages()
     checkModel()
+    print("Verification complete!")
 main()
