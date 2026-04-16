@@ -1,0 +1,14 @@
+accelerate
+browsergym
+browsergym-webarena
+datasets
+gptqmodel
+huggingface_hub
+numpy
+optimum
+peft
+pillow
+playwright
+torch
+transformers
+trl
