@@ -10,7 +10,7 @@ import torch
 from src.agent.compat import normalize_observation
 from src.agent.prompting import build_site_hints, build_system_prompt, describe_editable_controls
 
-from .trajectory import EpisodeTrajectory, load_episode_trajectory
+from .trajectory import EpisodeTrajectory, compute_step_sample_weights, load_episode_trajectory
 
 
 @dataclass(slots=True)
@@ -47,6 +47,7 @@ class WarmupMetrics:
 class WarmupSample:
     prompt: str
     response_text: str
+    sample_weight: float
 
 
 def discover_episode_dirs(paths: Sequence[str | Path]) -> list[Path]:
@@ -96,13 +97,12 @@ def build_warmup_samples(
 
     samples: list[WarmupSample] = []
     for trajectory in trajectories:
-        for step in trajectory.steps:
-            if not step.response_text:
-                continue
+        for step, sample_weight in compute_step_sample_weights(trajectory):
             samples.append(
                 WarmupSample(
                     prompt=build_compact_warmup_prompt(step, model_system_prompt=model_system_prompt),
                     response_text=step.response_text,
+                    sample_weight=sample_weight,
                 )
             )
     return samples
@@ -142,7 +142,13 @@ def run_supervised_warmup(policy, trajectories: Sequence[EpisodeTrajectory], con
             prompts = [sample.prompt for sample in batch]
             responses = [sample.response_text for sample in batch]
             logprobs = policy.score_responses(prompts, responses, use_reference=False)
-            loss = -torch.mean(logprobs)
+            sample_weights = torch.tensor(
+                [sample.sample_weight for sample in batch],
+                dtype=logprobs.dtype,
+                device=logprobs.device,
+            )
+            normalized_weights = sample_weights / sample_weights.sum().clamp(min=1e-8)
+            loss = -(logprobs * normalized_weights).sum()
             scaled_loss = loss / accumulation_steps
 
             scaled_loss.backward()

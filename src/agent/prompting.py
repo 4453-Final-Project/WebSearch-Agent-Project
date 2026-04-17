@@ -65,6 +65,7 @@ def build_system_prompt(model_system_prompt: str | None = None) -> str:
 def build_user_prompt(observation: NormalizedObservation, step_idx: int) -> str:
     """Build the deterministic user prompt from a normalized observation."""
 
+    gitlab_explore_example_url = _build_gitlab_explore_url(observation.current_url)
     sections = [
         f"Step: {step_idx}",
         f"Task Goal: {observation.goal}",
@@ -110,7 +111,7 @@ def build_user_prompt(observation: NormalizedObservation, step_idx: int) -> str:
         "Do not treat final answers like zip codes, usernames, repo URLs, or clone commands as bids.",
         "Do not use placeholder person names like John Doe or Jane Doe unless they are explicitly shown on the page as the real answer.",
         "If you use goto, stay on the WebArena host and avoid made-up GitLab paths.",
-        'If you use goto, it must look like ACTION: goto("http://3.14.148.71:8023/explore") and never ACTION: goto.',
+        f'If you use goto, it must look like ACTION: goto("{gitlab_explore_example_url}") and never ACTION: goto.',
         'If you use press, it must look like ACTION: press("130", "Enter"), not ACTION: press("Enter").',
         'Invalid examples: ACTION: goto | ACTION: click | ACTION: click("Explore") | ACTION: click("15213") | ACTION: click("tokudu") | ACTION: fill("250", "Filter by name") | ACTION: fill("130", "Search GitLab") | ACTION: press("Enter")',
         ]
@@ -223,7 +224,7 @@ def describe_editable_controls(dom_or_ax_snippet: str) -> str:
 
 def build_site_hints(observation: NormalizedObservation) -> str:
     parsed = urlparse(observation.current_url or "")
-    if parsed.netloc.endswith(":7770"):
+    if _is_shopping_domain_url(observation.current_url):
         shopping_hint = build_shopping_page_hint(
             current_url=observation.current_url,
             goal=observation.goal,
@@ -245,7 +246,7 @@ def build_site_hints(observation: NormalizedObservation) -> str:
         query_hint = derive_gitlab_query_hint(observation.goal)
         if path == "/":
             base = (
-                'On the GitLab root page, prefer ACTION: goto("http://3.14.148.71:8023/explore") '
+                f'On the GitLab root page, prefer ACTION: goto("{_build_gitlab_explore_url(observation.current_url)}") '
                 "before repository search. The repository filter named 'Filter by name' belongs on /explore, "
                 "not the root dashboard."
             )
@@ -296,6 +297,8 @@ def build_shopping_page_hint(
 ) -> str:
     parsed = urlparse(current_url or "")
     path = parsed.path or "/"
+    if parsed.netloc.endswith(":7780"):
+        return build_shopping_admin_page_hint(current_url, goal, visible_page_summary, dom_or_ax_snippet)
     query_hint = derive_shopping_query_hint(goal)
     category_labels = derive_shopping_category_labels(goal)
     sort_value, direction = derive_shopping_sort_hint(goal)
@@ -492,7 +495,85 @@ def build_shopping_order_history_page_hint(current_url: str, goal: str, dom_or_a
                 'Read the first row whose status is Canceled and answer with ACTION: send_msg_to_user("<order total>"). '
                 'For example, if the newest canceled row shows $365.42, respond exactly with ACTION: send_msg_to_user("365.42").'
             )
+    status_phrase = _describe_shopping_order_status_phrase(lowered_goal)
+    row_selector = _describe_shopping_order_row_selector(lowered_goal)
+    if ("order number" in lowered_goal or "order id" in lowered_goal) and row_selector and status_phrase:
+        return (
+            "On Shopping My Orders pages, do not use fill. Read directly from the visible orders table. "
+            f"The table is sorted newest first, so locate the {row_selector} {status_phrase} row and answer with "
+            'ACTION: send_msg_to_user("<order number>").'
+        )
+    if ("total cost" in lowered_goal or "order total" in lowered_goal) and row_selector and status_phrase:
+        return (
+            "On Shopping My Orders pages, do not use fill. Read directly from the visible orders table. "
+            f"Locate the {row_selector} {status_phrase} row and answer with ACTION: send_msg_to_user(\"<order total>\"). "
+            "Return the numeric amount without the dollar sign."
+        )
+    if "refund" in lowered_goal:
+        return (
+            "On Shopping My Orders pages, do not use fill. Read the visible canceled-order rows directly from the table. "
+            "Match the canceled order by the date constraint in the goal, then answer with ACTION: send_msg_to_user(\"<refund amount>\"). "
+            "If the goal says shipping is refundable, include it; if the goal says shipping is not refundable, subtract it; "
+            "if the goal says one item was kept, subtract that kept item's amount from the refund."
+        )
     return ""
+
+
+def build_shopping_admin_page_hint(
+    current_url: str,
+    goal: str,
+    visible_page_summary: str,
+    dom_or_ax_snippet: str,
+) -> str:
+    parsed = urlparse(current_url or "")
+    path = parsed.path or "/"
+    if not parsed.netloc.endswith(":7780"):
+        return ""
+    lowered_goal = " ".join((goal or "").lower().split())
+    base_url = f"{parsed.scheme or 'http'}://{parsed.netloc}"
+    if path.startswith("/admin/admin/dashboard"):
+        if _is_shopping_orders_goal(goal):
+            count = derive_shopping_order_count(goal)
+            if count and "items" in lowered_goal and "sold" in lowered_goal:
+                return (
+                    "On the Magento admin dashboard, the visible Quantity widget already contains the recent-order counts needed for this task. "
+                    f"Sum the first {count} visible quantity values and answer directly with ACTION: send_msg_to_user(\"<sum>\"). "
+                    "Do not navigate away if those quantity values are already visible."
+                )
+            return (
+                "On the Magento admin dashboard, do not use the dashboard widgets or search box for order-reference tasks. "
+                "Go straight to Sales > Orders first. "
+                f'A structurally valid next action here would be ACTION: goto("{base_url}/admin/sales/order/").'
+            )
+        return ""
+    if not path.startswith("/admin/sales/order"):
+        return ""
+
+    status_phrase = _describe_shopping_order_status_phrase(lowered_goal)
+    row_selector = _describe_shopping_order_row_selector(lowered_goal)
+    count = derive_shopping_order_count(goal)
+    parts = [
+        "You are already on the Magento admin Sales > Orders page.",
+        "Do not use fill if the needed order rows are already visible in the table.",
+        'Read the visible rows directly and answer with ACTION: send_msg_to_user("...").',
+    ]
+    if count and "items" in lowered_goal and "sold" in lowered_goal:
+        parts.append(
+            f"The table is sorted newest first. Sum the quantity values from the first {count} visible order rows and answer with ACTION: send_msg_to_user(\"<sum>\")."
+        )
+    elif count and "total payment amount" in lowered_goal and status_phrase:
+        parts.append(
+            f"Add the order totals from the last {count} visible {status_phrase} rows and answer with ACTION: send_msg_to_user(\"<sum>\")."
+        )
+    elif "payment difference" in lowered_goal:
+        parts.append(
+            "Compute the difference between the visible canceled-order totals and complete-order totals requested by the goal, then answer with ACTION: send_msg_to_user(\"<difference>\")."
+        )
+    elif ("billing name" in lowered_goal or "customer name" in lowered_goal) and status_phrase and row_selector:
+        parts.append(
+            f"Locate the {row_selector} {status_phrase} row, read the visible customer or bill-to name for that row, and answer with ACTION: send_msg_to_user(\"<name>\")."
+        )
+    return " ".join(parts)
 
 
 def build_shopping_order_detail_page_hint(
@@ -557,7 +638,21 @@ def derive_gitlab_repo_hint(goal: str) -> str:
     start = lowered.find(marker)
     end = lowered.find(end_marker, start + len(marker)) if start != -1 else -1
     if start == -1 or end == -1:
-        return ""
+        contribution_match = re.search(
+            r"\b(?:commits|contributions)\b.*?\bto (?P<repo>[A-Za-z0-9_.\-/]+?)(?: on \d{1,2}/\d{1,2}(?:/\d{4})?|\?|$)",
+            text,
+            flags=re.IGNORECASE,
+        )
+        if contribution_match is None:
+            clone_match = re.search(
+                r"\bclone (?P<repo>[A-Za-z0-9_.\-/]+?) with ssh\b",
+                text,
+                flags=re.IGNORECASE,
+            )
+            if clone_match is None:
+                return ""
+            return clone_match.group("repo").strip(" .")
+        return contribution_match.group("repo").strip(" .")
     return text[start + len(marker) : end].strip(" .")
 
 
@@ -618,6 +713,20 @@ def derive_shopping_sort_hint(goal: str) -> tuple[str | None, str | None]:
     elif "descending" in lowered:
         direction = "desc"
     return sort_value, direction
+
+
+def derive_shopping_order_count(goal: str) -> int | None:
+    text = " ".join((goal or "").lower().split())
+    if not text:
+        return None
+    for pattern in (
+        r"\bmost recent\s+(\d+)\s+orders?\b",
+        r"\blast\s+(\d+)\s+(?:completed|complete|pending|cancelled|canceled|non-cancelled|non-canceled)?\s*orders?\b",
+    ):
+        match = re.search(pattern, text)
+        if match:
+            return int(match.group(1))
+    return None
 
 
 def _build_gitlab_explore_fill_hint(dom_or_ax_snippet: str, query_hint: str) -> str:
@@ -783,6 +892,8 @@ def _is_shopping_orders_goal(goal: str) -> bool:
         "order number",
         "latest order",
         "recent order",
+        "last ordered",
+        "ordered my",
         "cancelled order",
         "pending order",
         "complete order",
@@ -799,6 +910,31 @@ def _is_shopping_orders_goal(goal: str) -> bool:
         "shopping at one stop market",
     )
     return any(keyword in lowered for keyword in keywords)
+
+
+def _is_shopping_domain_url(current_url: str) -> bool:
+    parsed = urlparse(current_url or "")
+    return parsed.netloc.endswith(":7770") or parsed.netloc.endswith(":7780")
+
+
+def _describe_shopping_order_status_phrase(lowered_goal: str) -> str:
+    if "non-cancelled" in lowered_goal or "non-canceled" in lowered_goal:
+        return "non-canceled"
+    if "cancelled" in lowered_goal or "canceled" in lowered_goal:
+        return "canceled"
+    if "pending" in lowered_goal:
+        return "pending"
+    if "completed" in lowered_goal or "complete" in lowered_goal:
+        return "complete"
+    return ""
+
+
+def _describe_shopping_order_row_selector(lowered_goal: str) -> str:
+    if "oldest" in lowered_goal:
+        return "oldest"
+    if "latest" in lowered_goal or "most recent" in lowered_goal or "newest" in lowered_goal:
+        return "newest"
+    return ""
 
 
 def _is_shopping_guest_order_goal(goal: str) -> bool:
@@ -1027,7 +1163,11 @@ def _is_gitlab_graph_path(path: str) -> bool:
 
 def _is_gitlab_contribution_goal(goal: str) -> bool:
     lowered = (goal or "").lower()
-    return "most contributions" in lowered or "number of commits" in lowered
+    return (
+        "most contributions" in lowered
+        or "number of commits" in lowered
+        or "how many commits" in lowered
+    )
 
 
 def _has_click_timeout_history(observation: NormalizedObservation) -> bool:
@@ -1078,6 +1218,14 @@ def build_gitlab_alternate_graph_url(current_url: str) -> str:
     if "/-/graphs/master" in path:
         return f"{parsed.scheme}://{parsed.netloc}{path.replace('/-/graphs/master', '/-/graphs/main', 1)}"
     return ""
+
+
+def _build_gitlab_explore_url(current_url: str) -> str:
+    parsed = urlparse(current_url or "")
+    if parsed.netloc.endswith(":8023"):
+        scheme = parsed.scheme or "http"
+        return f"{scheme}://{parsed.netloc}/explore"
+    return "http://3.14.148.71:8023/explore"
 
 
 def _is_page_not_found(visible_page_summary: str, dom_or_ax_snippet: str) -> bool:

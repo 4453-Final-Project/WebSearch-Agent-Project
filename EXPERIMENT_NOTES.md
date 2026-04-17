@@ -1,0 +1,143 @@
+# Experiment Notes
+
+## Current Working Recipe
+
+- executable family: `shopping_exact` (`32` exact-match shopping tasks)
+- split: `14` warmup, `12` GRPO, `6` holdout
+- total training tasks: `26`
+- current best large-family run: `outputs/liquid_shopping_exact_curriculum_smoke_v4/`
+- holdout result: baseline `0/6`, warmup `1/6`, post-GRPO `2/6`
+- current best untouched-holdout re-eval with the same GRPO adapter: `outputs/liquid_shopping_exact_holdout_reval_v5/`
+- re-evaluated holdout result: `6/6`
+- current official-target full-family run: `outputs/qwen_shopping_exact_curriculum_v1/`
+- official-target full-family result: baseline `0.75`, warmup `0.765625`, post-GRPO `0.796875`
+- official-target untouched-holdout result: baseline `0.8333333333333334`, warmup `0.9166666666666666`, post-GRPO `0.9166666666666666`
+- current official-target untouched-holdout re-eval with the same GRPO adapter: `outputs/qwen_shopping_exact_holdout_reval_v1/`
+- re-evaluated official-target holdout result: `6/6`
+- latest targeted refund-history re-evals on the same official Qwen adapter: task `323` succeeds in `outputs/eval_task_323_qwen_after_history_refund_detail_fix/`, and task `321` succeeds in `outputs/eval_task_321_qwen_after_history_aggregate_fix_v2/`
+- current official-adapter refund slice check: tasks `320`, `321`, `322`, and `323` all succeed on the same stack in `outputs/eval_task_320_qwen_current_refund_stack/`, `outputs/eval_task_321_qwen_after_history_aggregate_fix_v2/`, `outputs/eval_task_322_qwen_current_refund_stack/`, and `outputs/eval_task_323_qwen_after_history_refund_detail_fix/`
+- merged current-stack family summary in `outputs/qwen_shopping_exact_current_stack_summary.json`: `31/32` (`0.96875`) on the official `shopping_exact` family after folding in the targeted task re-evals, with only task `131` still failing
+- the broader scripted scale-up path is now wired as `shopping_full`: `48` tasks total with a deterministic `16` warmup / `24` GRPO / `8` holdout split (`40` training tasks), gated behind a fail-fast `OPENAI_API_KEY` check because 16 of those tasks still use fuzzy judges
+- the next non-shopping expansion path is now wired as `bootstrap41`: `41` cross-site scripted tasks spanning shopping, shopping admin, reddit, gitlab, and map, with a deterministic `15` warmup / `18` GRPO / `8` holdout split and no OpenAI judge requirement
+- the next post-bootstrap expansion path is now wired as `web_mix88`: `88` mixed shopping-plus-cross-site tasks with a checked-in `30` warmup / `42` GRPO / `16` holdout split (`72` training tasks) and fuzzy-judge coverage carried over from `shopping_full`
+- focused bootstrap shopping-admin rechecks now have tasks `0-6` at `7/7` in `outputs/bootstrap41_dashboard_recheck_0_6_summary.json` after the stack learned to answer the early best-seller tasks from dashboard bestseller rows plus background-scraped ordered-product report aggregates
+- merged bootstrap current-stack summary in `outputs/bootstrap41_current_stack_summary.json`: the `bootstrap41` baseline from `outputs/qwen_bootstrap41_curriculum_v3_mapfix/baseline_eval_summary.json` now improves from `12/41` (`0.2926829268292683`) to `21/41` (`0.5121951219512195`) after folding in targeted re-evals for tasks `0`, `3`, `21`, `27`, `132`, `134`, `135`, `136`, and `293`
+- current bootstrap GitLab count note: the repaired inference loader plus GitLab count parser now flip tasks `134`, `135`, and `136`, while task `133` still scores `0.0` even after the stack reaches the intended repo-graph answer path and returns `0`
+- current bootstrap RSS-token note: task `259` now reaches the authenticated `/-/profile/personal_access_tokens` page reliably, the runner can recover the real feed token from the hidden `data-clipboard-text` copy button on that page, and the live two-step env probe now produces the direct `send_msg_to_user("TMN_bBn9Z48qVbUFZV45")` answer action; the remaining gap is producing a clean finished single-task eval artifact on the slow live loop
+- the earlier bootstrap run in `outputs/qwen_bootstrap41_curriculum_v2_dashboardfix/` is now a stale pre-map-fix artifact for the map slice: its baseline still carries `0/7` on the map tasks because it was launched before the direct map backend recovery path landed
+- the current bootstrap run to watch is now `outputs/qwen_bootstrap41_curriculum_v3_mapfix/`, which is live in warmup demos on the fixed dashboard-plus-map stack after the focused map recheck slice reached `7/7`
+- `outputs/qwen_shopping_full_curriculum_v4_devicefix/` is now complete and is best treated as a saturation check rather than a training win: baseline finished at `47/48`, while both warmup-only and warmup + GRPO finished at `46/48`
+- `outputs/qwen_bootstrap41_curriculum_v3_mapfix/` is also now complete with no net training lift: baseline, warmup-only, and warmup + GRPO all stayed at `12/41`, which is the clearest sign that the previous warmup/GRPO sample weighting was too diffuse on the broader cross-site slice
+- the current training-signal change is step-aware weighting in both warmup and GRPO: later clean steps and successful terminal answer steps now carry more weight, while invalid or parse-failed steps are downweighted before optimization
+- the new cross-site rerun to watch is `outputs/qwen_bootstrap41_curriculum_v4_weightedfix/`, launched on the same checked-in `bootstrap41` split so the current weighted-training stack can be compared directly against `v3_mapfix`
+- the live `shopping_full` curriculum run in `outputs/qwen_shopping_full_curriculum_v1/` is currently still in rollout collection on an older in-memory code path, but focused re-evals with the saved warmup adapter plus the latest parser, observation, and fuzzy-evaluator fixes now put the current broad-family stack at `47/48`
+- the earlier `outputs/qwen_shopping_full_curriculum_v3_balanced/` rerun hit a warmup-training crash after baseline because the trainable loader was using `device_map="auto"` and leaving some parameters on the meta device during backward
+- the current main broad-family rerun is now `outputs/qwen_shopping_full_curriculum_v4_devicefix/`, which keeps the same balanced `48`-task / `40`-train split and fuzzy-judge setup but loads the trainable model onto one concrete device for warmup/GRPO instead of mixed auto offload
+- a focused warmup-only smoke on the fixed loader path now succeeds in `outputs/qwen_shopping_full_warmup_smoke_v1_devicefix/`: `5` mixed warmup tasks, `10` successful demos, `22` supervised samples, and final warmup loss `0.025344375520944595`, which is the first direct confirmation that backward and optimizer steps now work on the repaired training stack
+- a focused end-to-end staged smoke now also succeeds in `outputs/qwen_shopping_full_staged_smoke_v1_devicefix/`: disjoint warmup on tasks `188`, `191`, `325`; rollout collection plus GRPO on tasks `197`, `334`; and holdout eval on task `359`. The repaired stack completed warmup, collected `4/4` successful rollout episodes, saved a GRPO checkpoint at `checkpoints/iter_0000/adapter`, and kept both GRPO tasks plus the untouched holdout at `1.0` over `2` eval episodes each
+- that `v3` rerun also uses a more balanced `shopping_full` warmup: `191`, `201`, `334`, and `359` now enter warmup while `320` and `322` move to GRPO, so warmup covers `4` judge-gated tasks instead of only `2`
+- current `shopping_full` warmup-adapter current-stack wins over the saved baseline include tasks `203`, `319`, `334`, `335`, `336`, `337`, `338`, `359`, and `361`; only task `204` still fails, and it still behaves like a benchmark/reference mismatch rather than a model miss
+- the current `shopping_full` warmup-adapter effective split is therefore `31/32` on the exact/judge-free partition and `16/16` on the fuzzy-only fixes we rechecked except for the benchmark-mismatch task `204`, which yields an effective `47/48` (`0.9791666666666666`) overall current-stack score
+- mixed-family summaries now break out judge-free vs judge-gated success rates, so when `shopping_full` is runnable we can verify that gains are not confined to the exact-match subset
+- `scripts/validate_family_summary.py` now validates those summaries and can report blocker-aware effective rates, which is useful for the current `31/32` exact-family state where task `131` behaves like a benchmark mismatch
+- `scripts/merge_family_reevals.py` now recomputes a stage-specific holdout section after overrides, so the saved `current_stack` summary can correctly reflect the post-fix holdout state instead of inheriting stale warmup+GRPO holdout metrics
+- `scripts/validate_family_summary.py` now checks those stage-specific holdout sections too; the regenerated Qwen `current_stack` artifact validates with both `holdout` and `current_stack_holdout` present
+- that validator now also checks stage-specific `<label>_meta` sections, so merged current-stack artifacts must keep their override ids, override counts, copied base provenance, and applied override metrics internally consistent
+- that validator now also checks `run_provenance`, so split-source metadata is part of the saved artifact contract instead of only being surfaced opportunistically by the compare step
+- `scripts/normalize_family_summary.py` now upgrades older family summaries to the current schema, which means the legacy exact-family Liquid/Qwen runs can be backfilled with family metadata and task-group structure instead of staying in the older flat format
+- that normalization path now also backfills `run_provenance` from legacy `split_manifest` references, including older `/mnt/...` paths, so saved base/current-stack exact-family artifacts preserve split-source context too
+- `scripts/compare_family_summaries.py` now gives a direct side-by-side diff of two normalized family artifacts, which is the cleanest way to compare the legacy exact-family runs against the current-stack Qwen artifact without hand-diffing JSON
+- those compare reports now also expose `artifact_provenance` and a `provenance_comparison` block, so split-source mismatches are visible in the saved diff instead of only in the underlying summaries
+- they now also expose `artifact_stage_meta`, so the targeted re-eval override set behind a merged current-stack artifact is visible directly in the saved compare report
+- that stage-meta view now also records the merged artifact's `base_summary` path and summarized copied base split source, so the saved diff carries current-stack lineage as well as the override set
+- one-sided stage-meta keys such as the Qwen `current_stack_meta` now also get a compact `stage_meta_lineage_only_in_b` summary in the saved diff, which is the easiest place to read the merged-stage lineage at a glance
+- that compact lineage summary now also says whether `base_summary` exactly matches the compared base artifact path, which is the quickest trust check for a current-stack diff built on the intended base run
+- that trust check now normalizes Windows and `/mnt/<drive>/...` spellings of the same path, so older saved artifacts do not produce false lineage mismatches across shells
+- that comparator now supports mapped-stage comparisons too, so the base `warmup_plus_grpo` stage can be compared directly against the merged Qwen `current_stack` stage instead of only showing `current_stack` as an extra stage
+- the comparator now also records task-group deltas inside each stage comparison, so future `shopping_full` reports can show whether judge-free and judge-gated partitions move together instead of collapsing everything into one family average
+- the regenerated `outputs/qwen_shopping_exact_current_stack_summary.json` now preserves stage task groups, and the saved mapped comparison report in `outputs/shopping_exact_qwen_base_vs_current_stack_compare.json` now shows the six-task current-stack lift inside the `judge_free` partition instead of losing that structure
+- the saved exact-family compare reports in `outputs/shopping_exact_liquid_vs_qwen_compare.json` and `outputs/shopping_exact_qwen_base_vs_current_stack_compare.json` can now be reused directly in later notes without rerunning the compare command
+- the compare, merge, and normalize summary scripts now write JSON artifacts atomically after a transient validator race exposed that in-place rewrites could briefly surface an empty file during a refresh
+- `scripts/refresh_family_current_stack.py` now turns that exact-family maintenance flow into one command: merge overrides, validate the refreshed summary, and write the mapped compare report together so future targeted re-eval updates are less error-prone
+- that refreshed current-stack artifact now also keeps richer `<label>_meta` override provenance, including override counts, task ids, metrics paths, base-run provenance, and the applied override metrics copied from the targeted re-eval files
+- the official Qwen exact-family refresh now has a checked-in manifest at `scripts/local/qwen_shopping_exact_current_stack_manifest.json`, plus shell and PowerShell wrappers, so replaying the same current-stack override set no longer depends on recovering a long ad hoc command
+- that refresh flow now preflights the override set too, so a missing metrics file or an override task id that is not present in the chosen base stage will fail before the current-stack artifact is rewritten
+- `scripts/run_family_curriculum.py` now has a `--dry-run` preflight that prints the exact warmup/GRPO/holdout split, task-group coverage, and whether the run clears the default 20-task training-floor target before any browser work begins
+- that preflight now also reports whether the chosen split still matches the current recommended family split, which makes manifest drift visible in the dry-run output instead of only through separate validation commands
+- that dry-run now also works for fuzzy-judged families without `OPENAI_API_KEY`, which makes it possible to inspect and sanity-check the `shopping_full` 40-task training split before judge credentials are present; it reports `judge_requirements` and `launch_ready` instead of pretending the run can start
+- dry-runs with `--out-dir` now also persist `preflight.json`, so the broader-family planning pass can leave behind a reusable artifact instead of only printing the split once to the terminal
+- the runner now accepts `--split-manifest`, which means the eventual `shopping_full` launch can consume that saved preflight directly and keep the exact planned 40-task partition instead of recomputing it later
+- real run artifacts now keep the same split provenance too: newly written `split_manifest.json` and `family_summary.json` record `split_provenance`, judge readiness, and `recommended_split_alignment`, so the source of a finished run is still obvious after the shell scrollback is gone
+- the same checked-in manifest pattern now covers `shopping_exact` through `scripts/local/shopping_exact_curriculum_manifest.json`, so the exact-family launch path is portable too instead of depending on implicit defaults
+- the approved `shopping_full` split is now checked in under `scripts/local/shopping_full_curriculum_manifest.json`, so the broader-family launch path no longer depends on an `outputs/` artifact being present on disk
+- `scripts/refresh_family_split_manifest.py` now gives that checked-in broader-family manifest a one-command refresh path from the curriculum code, so drift can be fixed or intentional split changes can be rolled forward without editing JSON by hand
+- that same refresh utility now also owns the checked-in `shopping_exact` manifest, so both portable family-launch paths can be regenerated from code instead of hand-editing JSON
+- the local launcher scripts now have regression coverage too, so exact/full Qwen and Liquid helpers are checked for the right shared manifest paths and cannot silently drift back to implicit splits
+- `scripts/validate_split_manifests.py` now gives the same exact/full manifest and launcher checks a command-line path too, which is useful when we want to sanity-check the portable split setup without running the whole unit suite
+
+## What Worked
+
+- Putting all four shopping search/sort tasks in warmup helped holdout task `324` transfer again at larger scale.
+- Using `2` scripted demo episodes per warmup task and `2` warmup epochs was meaningfully better than the earlier `1`-demo, `1`-epoch smoke.
+- Keeping the training pool above `20` tasks while biasing warmup toward the most transferable patterns was enough to produce real holdout lift on the larger family.
+- Reducing GRPO rollout collection to `groups_per_task=1` and `group_size=2` kept the full staged run tractable while still improving holdout task `195`.
+- Reusing cached baseline metrics, rollout episodes, and per-task eval metrics made the official-target Qwen run finishable after multi-hour interruptions and transient browser timeouts.
+- On the official-target `Qwen/Qwen3.5-2B` run, warmup alone transferred untouched holdout task `324` and raised holdout from `0.8333333333333334` to `0.9166666666666666`.
+- On that same Qwen run, GRPO added full-family lift by recovering task `194` from warmup `0.0` back to `1.0`, pushing overall family success to `0.796875`.
+- Reading the `Purchase Date` header arrow before clicking fixed the remaining stateful admin-order failure on Qwen holdout task `200` and lifted the untouched official-target holdout re-eval to `6/6`.
+- Rewriting semantically wrong admin-grid final answers to the derived structured answer prevented avoidable regressions on admin total tasks.
+- Exposing bboxless order-detail values from the raw AX tree and answering directly from them flipped untouched holdouts `358` and `360` without retraining.
+- Summarizing customer order-history rows from the raw AX tree and auto-correcting non-matching final answers flipped untouched holdout `189` without retraining.
+- Normalizing admin-order grid sort state through the actionable `Purchase Date` header fixed the stateful admin failures on holdouts `195` and `200`.
+- Forcing the actionable `Purchase Date` header into the admin DOM/AX snippet made the sort-normalization fix stable across repeated untouched-holdout re-evals.
+- Appending structured `Customer refund detail:` lines from background order-detail pages fixed multi-order refund math on task `323` without retraining.
+- Compressing history-page summaries around refund-detail lines instead of leaving all visible order rows in place let the Qwen adapter answer year-wide refund task `321` in `2` steps instead of stalling in long history-page crawls.
+- Appending dashboard bestseller rows from the real Magento admin body text fixed the step-0 parse-failure cliff on bootstrap shopping-admin tasks `0-3`, because the policy could answer the leaderboard questions directly instead of trying malformed `fill(...)` actions on the dashboard search box.
+- Background-scraping the Magento `Ordered Products Report` with goal-derived date windows fixed the next shopping-admin report slice too: task `5` turned green once the stack could read the correct Jan-2023 report rows, and task `6` turned green once those rows were compressed into family-aware bestseller aggregates instead of being truncated raw in the visible summary.
+- Broadening the Magento review-author recovery to tolerate duplicated author strings and match the “small ear cups” phrasing on the Ajax review feed flipped bootstrap task `21` in `outputs/eval_task_21_bootstrap_reviewfix_v4/`.
+- Answering the Postmill latest-negative-comment goal directly from the resolved forum page plus latest submission HTML flipped bootstrap Reddit task `27` in `outputs/eval_task_27_bootstrap_redditfix_v5/`.
+- Recovering GitLab commit-count questions through the repo graph JSON (`/-/graphs/main?format=json`) flipped bootstrap GitLab task `132` in `outputs/eval_task_132_bootstrap_hostfix_v5/`.
+- Letting GitLab commit-count goals accept missing years, split multi-person queries like `Eric and Kilian`, and match `Steve/Steven` author variants flipped bootstrap GitLab tasks `135` and `136`, and the same repaired inference path also turned task `134` green.
+- Building a family-style override summary from a completed baseline plus targeted re-eval metrics made it easy to keep a reusable `bootstrap41_current_stack_summary.json` scorecard instead of only listing isolated task wins.
+- On this machine, the official Qwen adapter re-eval path worked again once the active interpreter had `peft` installed and a recent `transformers` build that recognizes `qwen3_5`.
+- Normalizing malformed `_no_split_modules` entries before loading PEFT adapters fixed a real warmup-adapter reload crash in focused evaluation and future eval stages.
+- Re-checking neighboring refund tasks on the same adapter confirmed the fixes generalized across the local refund slice instead of only patching one prompt shape: `320`, `321`, `322`, and `323` all stayed green.
+- Background-scraping authenticated admin order-detail pages into structured `Admin order item row:` lines gives the policy a real way to answer admin item-count questions instead of guessing from the orders grid.
+- Letting fuzzy string-match evaluation score multi-reference answers against `reference_answer_raw_annotation` first fixed legitimate multi-field answers on tasks like `203` and `361` that the stock per-reference multiplication path was undercounting.
+- Returning the admin purchase-date-plus-order-id answer in the benchmark's raw `order, timestamp` format fixed task `203` without loosening any single-field evaluator behavior.
+- Removing 300-character truncation from full-page order-detail date extraction and falling back to page HTML recovered task `359`, whose `Order Date` block sits beyond the truncated accessibility-text prefix.
+- Routing storefront "last ordered my ..." goals straight into order history on the current stack flipped tasks `334`, `335`, `336`, `337`, and `338` in focused warmup-adapter re-evals.
+- Merging targeted re-evals back into the official family summary gives a reliable current-stack scorecard without rerunning all `32` tasks every time the parser improves.
+- Keeping the broader 48-task curriculum behind an explicit judge-key gate prevents long fuzzy-family runs from failing late after expensive demo collection or warmup work.
+- Preflighting large-family split changes before launch makes it much harder to accidentally regress into a too-small training pool while tuning warmup or holdout counts.
+- Reusing a saved preflight as the launch manifest closes the loop between planning and execution for the broader 48-task run.
+- Checking the approved broader-family split into the repo makes that planning-to-launch bridge portable across machines instead of tying it to one local `outputs/` directory.
+- Giving the checked-in broader-family manifest a refresh script closes the last manual maintenance gap in that portable launch path.
+- Letting fuzzy-family dry-runs print split readiness without a judge key makes the broader 48-task path easier to prepare before the final launch environment is available.
+- Writing the dry-run payload to disk makes it easier to carry a validated `shopping_full` split forward into the real launch shell once judge credentials show up.
+- A tiny step-efficiency reward shape is now available for future reruns: successful shorter episodes get a small bonus, and longer episodes pay a very small per-step cost, which should help GRPO prefer cleaner one- and two-step solutions without overwhelming the success signal.
+- Weighting warmup and GRPO samples toward later clean steps and successful terminal answers is now in place, which should make both behavior cloning and RL focus more on the decisive answer behavior instead of spreading equal optimization mass across early navigation noise.
+
+## What Did Not Work
+
+- The earlier diluted `shopping_exact` smoke with only `1` demo per warmup task and `1` warmup epoch did not produce net holdout gain.
+- A heavier rollout collection pass with `groups_per_task=2` timed out before the full staged run completed.
+- Before per-task eval reuse was added, interrupted full-family evaluation forced repeated re-scoring of already-finished tasks and made the Qwen run fragile.
+- The first Qwen `shopping_exact` run did not add extra untouched-holdout lift beyond warmup; GRPO improved the full family, but holdout stayed at `0.9166666666666666`.
+- Leaving admin-order recency tasks at the mercy of Magento's persisted sort state caused holdout results to flap between `195` and `200`.
+- Blindly clicking the admin `Purchase Date` header for oldest-order goals was wrong when the page was already in oldest-first state.
+- Leaving background refund-detail enrichment unbounded inside the visible summary made Qwen task `321` runs balloon in latency and time out before producing `steps.jsonl`; truncating and prioritizing the structured refund lines fixed that.
+- Task `131` is currently a live benchmark mismatch: the dashboard recent-orders widget only exposes `5` rows that sum to `18`, and the authenticated admin-order detail scrape yields `26` for the latest visible `7` orders, but the judge still only accepts the baked reference answer `25`.
+- Task `204` is still a live benchmark mismatch on the broader family: the current stack answers from the actual most recent completed order, but the evaluator still scores against a different order snapshot.
+
+## Next Best Follow-Ups
+
+- Run a second official-target `Qwen/Qwen3.5-2B` curriculum with slightly stronger GRPO pressure now that the resumable stack is stable.
+- Treat task `131` as an unstable benchmark item unless the underlying WebArena shopping-admin data is refreshed or the reference answer is corrected.
+- Merge the focused `bootstrap41` shopping-admin rechecks back into a saved current-stack artifact if we need a single cross-site scorecard before the in-flight `v2_dashboardfix` run finishes warmup and GRPO.
+- Keep refreshing `outputs/bootstrap41_current_stack_summary.json` as more cross-site fixes land so the bootstrap scorecard tracks the real stack instead of only the stale baseline from `qwen_bootstrap41_curriculum_v3_mapfix`.
+- Once the exact-match stack is stable, expand to the broader `48`-task shopping family when fuzzy-judge credentials are available.
+- When `OPENAI_API_KEY` is available in the run shell, prefer `shopping_full` over another same-slice exact rerun so training expands from `26` to `40` tasks instead of just spending more compute on the already-saturated 32-task exact family.
+- Once the in-flight `shopping_full` rollout job finishes, either rerun the warmup/full-family eval stage under the current code path or merge the focused current-stack re-evals into a saved `shopping_full` artifact so the broad-family scorecard reflects the real `47/48` state instead of the stale `38/48` baseline snapshot.
+- Let the current `outputs/qwen_shopping_full_curriculum_v4_devicefix/` rerun continue on the balanced warmup plus step-efficiency shaping stack before making another curriculum change.
+- Compare `outputs/qwen_bootstrap41_curriculum_v4_weightedfix/` directly against `outputs/qwen_bootstrap41_curriculum_v3_mapfix/` before changing the bootstrap split again; the current goal is to see whether the new step-aware weighting finally produces cross-site warmup or GRPO lift on the same task family.

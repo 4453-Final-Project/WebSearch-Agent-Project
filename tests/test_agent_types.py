@@ -6,6 +6,7 @@ import os
 import sys
 import unittest
 from pathlib import Path
+import tempfile
 from unittest import mock
 
 
@@ -15,7 +16,8 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from src.agent.compat import load_policy_config, normalize_observation
 from src.agent.types import AgentDecision, NormalizedObservation, OpenTab, PolicyConfig
-from src.utils.config import get_model_path, get_workspace_root, resolve_model_path
+from src.utils import config as config_module
+from src.utils.config import get_env_var, get_model_path, get_workspace_root, resolve_model_path
 
 
 class NormalizeObservationTests(unittest.TestCase):
@@ -133,6 +135,33 @@ class ModelPathResolutionTests(unittest.TestCase):
     def test_resolve_model_path_uses_model_dir_name_under_workspace_models(self) -> None:
         resolved = resolve_model_path(model_dir_name="AnotherModel")
         self.assertEqual(resolved, get_workspace_root() / "models" / "AnotherModel")
+
+
+class RepoEnvLoadingTests(unittest.TestCase):
+    """Tests for repo-local .env loading."""
+
+    def test_get_env_var_loads_missing_values_from_repo_env_file(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo_root = Path(temp_dir)
+            (repo_root / ".env").write_text(
+                'export WA_SHOPPING="http://example.test:7770/"\nWA_MAP=http://example.test:3000\n',
+                encoding="utf-8",
+            )
+            with mock.patch.dict(os.environ, {}, clear=True):
+                with mock.patch.object(config_module, "get_repo_root", return_value=repo_root):
+                    config_module._REPO_ENV_LOADED = False
+                    self.assertEqual(get_env_var("WA_SHOPPING"), "http://example.test:7770/")
+                    self.assertEqual(get_env_var("WA_MAP"), "http://example.test:3000")
+                    self.assertEqual(os.environ["WA_SHOPPING"], "http://example.test:7770/")
+
+    def test_get_env_var_does_not_override_existing_shell_values(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo_root = Path(temp_dir)
+            (repo_root / ".env").write_text('WA_SHOPPING=http://from-file.test:7770\n', encoding="utf-8")
+            with mock.patch.dict(os.environ, {"WA_SHOPPING": "http://from-shell.test:7770"}, clear=True):
+                with mock.patch.object(config_module, "get_repo_root", return_value=repo_root):
+                    config_module._REPO_ENV_LOADED = False
+                    self.assertEqual(get_env_var("WA_SHOPPING"), "http://from-shell.test:7770")
 
 
 class DataclassConstructionTests(unittest.TestCase):

@@ -50,10 +50,31 @@ def build_arg_parser() -> argparse.ArgumentParser:
 
 def main() -> int:
     args = build_arg_parser().parse_args()
-    out_dir = Path(args.out_dir)
+    task_ids = _resolve_task_ids(args.task_id, args.preset)
+    summary = collect_scripted_warmup_demos(
+        task_ids=task_ids,
+        seed=args.seed,
+        episodes=args.episodes,
+        max_steps=args.max_steps,
+        out_dir=args.out_dir,
+        headed=args.headed,
+    )
+    print(json.dumps(summary, indent=2, sort_keys=True))
+    return 0
+
+
+def collect_scripted_warmup_demos(
+    *,
+    task_ids: list[int],
+    seed: int,
+    episodes: int,
+    max_steps: int,
+    out_dir: str | Path,
+    headed: bool = False,
+) -> dict[str, object]:
+    out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    task_ids = _resolve_task_ids(args.task_id, args.preset)
     all_task_summaries: list[dict[str, object]] = []
     all_episodes: list[dict[str, object]] = []
 
@@ -62,29 +83,29 @@ def main() -> int:
         task_dir = out_dir / f"task_{task_id:04d}"
         task_dir.mkdir(parents=True, exist_ok=True)
 
-        episodes: list[dict[str, object]] = []
-        for episode_idx in range(args.episodes):
-            seed = args.seed + (task_offset * 1000) + episode_idx
+        task_episodes: list[dict[str, object]] = []
+        for episode_idx in range(episodes):
+            episode_seed = seed + (task_offset * 1000) + episode_idx
             episode_out_dir = task_dir / f"episode_{episode_idx:04d}"
             episode = run_episode(
                 policy=policy,
                 task_id=task_id,
-                seed=seed,
-                max_steps=args.max_steps,
+                seed=episode_seed,
+                max_steps=max_steps,
                 out_dir=episode_out_dir,
-                headless=not args.headed,
+                headless=not headed,
             )
-            episodes.append(episode)
+            task_episodes.append(episode)
             all_episodes.append(episode)
 
-        success_count = sum(int(episode.get("success", False)) for episode in episodes)
+        success_count = sum(int(episode.get("success", False)) for episode in task_episodes)
         task_summary = {
             "task_id": task_id,
             "policy_name": policy.name,
-            "episodes": len(episodes),
+            "episodes": len(task_episodes),
             "success_count": success_count,
-            "success_rate": success_count / max(1, len(episodes)),
-            "average_reward": sum(float(episode.get("reward", 0.0)) for episode in episodes) / max(1, len(episodes)),
+            "success_rate": success_count / max(1, len(task_episodes)),
+            "average_reward": sum(float(episode.get("reward", 0.0)) for episode in task_episodes) / max(1, len(task_episodes)),
             "out_dir": str(task_dir),
         }
         (task_dir / "summary.json").write_text(json.dumps(task_summary, indent=2, sort_keys=True), encoding="utf-8")
@@ -94,7 +115,7 @@ def main() -> int:
     summary = {
         "task_ids": task_ids,
         "task_count": len(task_ids),
-        "episodes_per_task": args.episodes,
+        "episodes_per_task": episodes,
         "episodes": len(all_episodes),
         "success_count": sum(int(episode.get("success", False)) for episode in all_episodes),
         "success_rate": sum(int(episode.get("success", False)) for episode in all_episodes) / max(1, len(all_episodes)),
@@ -104,8 +125,7 @@ def main() -> int:
     }
     (out_dir / "summary.json").write_text(json.dumps(summary, indent=2, sort_keys=True), encoding="utf-8")
     (out_dir / "summary.txt").write_text(_format_collection_summary_text(summary), encoding="utf-8")
-    print(json.dumps(summary, indent=2, sort_keys=True))
-    return 0
+    return summary
 
 
 def _resolve_task_ids(task_ids: list[int], preset: str | None) -> list[int]:

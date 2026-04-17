@@ -80,6 +80,7 @@ class PlotShoppingSearchsortResultsTests(unittest.TestCase):
                     "warmup_task_ids": [325, 326],
                     "grpo_task_ids": [327, 328],
                     "eval_task_ids": [324, 325, 326, 327, 328],
+                    "holdout_task_ids": [324],
                     "selected_demo_count": 6,
                     "selected_demo_task_counts": {"325": 3, "326": 3},
                     "warmup_metrics": {"epochs": 1, "final_loss": 3.0, "success_demo_count": 6},
@@ -122,6 +123,9 @@ class PlotShoppingSearchsortResultsTests(unittest.TestCase):
             self.assertEqual(run_card["run_name"], "qwen_shopping_disjoint_v1")
             self.assertEqual(run_card["model"], "Qwen/Qwen3.5-2B")
             self.assertEqual(run_card["task_split"]["grpo_task_ids"], [327, 328])
+            self.assertEqual(run_card["task_split"]["holdout_task_ids"], [324])
+            self.assertEqual(run_card["holdout"]["gain_vs_baseline"], 1.0)
+            self.assertEqual(run_card["holdout"]["gain_vs_warmup"], 1.0)
 
 
 if __name__ == "__main__":

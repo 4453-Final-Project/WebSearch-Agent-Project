@@ -9,11 +9,23 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from src.agent.prompting import build_user_prompt
+from src.agent.prompting import build_user_prompt, derive_gitlab_query_hint
 from src.agent.types import NormalizedObservation
 
 
 class PromptingTests(unittest.TestCase):
+    def test_gitlab_query_hint_accepts_commit_goal_without_year(self) -> None:
+        self.assertEqual(
+            derive_gitlab_query_hint("How many commits did Eric make to a11yproject on 3/2?"),
+            "a11yproject",
+        )
+
+    def test_gitlab_query_hint_accepts_clone_goal(self) -> None:
+        self.assertEqual(
+            derive_gitlab_query_hint("Show me the command to clone Super_Awesome_Robot with SSH."),
+            "Super_Awesome_Robot",
+        )
+
     def test_shopping_home_prompt_surfaces_search_actions(self) -> None:
         observation = NormalizedObservation(
             goal='Show me the "chairs" listings by ascending price.',
@@ -122,6 +134,34 @@ class PromptingTests(unittest.TestCase):
         self.assertIn("do not use fill", prompt.lower())
         self.assertIn("open its details", prompt)
         self.assertIn('ACTION: click("1401")', prompt)
+
+    def test_shopping_admin_dashboard_prompt_goes_straight_to_orders(self) -> None:
+        observation = NormalizedObservation(
+            goal="Get the billing name of the oldest complete order",
+            current_url="http://3.14.148.71:7780/admin/admin/dashboard/",
+            visible_page_summary="Magento Admin dashboard",
+            dom_or_ax_snippet='[687] role=textbox name="Search" clickable\n[156] role=link name="SALES" clickable',
+        )
+
+        prompt = build_user_prompt(observation, step_idx=0)
+
+        self.assertIn("Magento admin dashboard", prompt)
+        self.assertIn("Sales > Orders", prompt)
+        self.assertIn('ACTION: goto("http://3.14.148.71:7780/admin/sales/order/")', prompt)
+
+    def test_shopping_admin_orders_prompt_describes_visible_table_answer(self) -> None:
+        observation = NormalizedObservation(
+            goal="Get the total payment amount of the last 5 completed orders",
+            current_url="http://3.14.148.71:7780/admin/sales/order/",
+            visible_page_summary="Orders table",
+            dom_or_ax_snippet='[1419] role=gridcell name="May 31, 2023 2:55:09 AM" clickable',
+        )
+
+        prompt = build_user_prompt(observation, step_idx=1)
+
+        self.assertIn("Magento admin Sales > Orders page", prompt)
+        self.assertIn('ACTION: send_msg_to_user("<sum>")', prompt)
+        self.assertIn("last 5 visible complete rows", prompt)
 
     def test_shopping_order_detail_prompt_answers_from_items_ordered(self) -> None:
         observation = NormalizedObservation(
@@ -242,6 +282,19 @@ class PromptingTests(unittest.TestCase):
         self.assertNotIn("gaming laptop", prompt)
         self.assertNotIn("<text to type>", prompt)
 
+    def test_gitlab_root_prompt_uses_current_host_for_explore_hint(self) -> None:
+        observation = NormalizedObservation(
+            goal="How many commits did kilian make to a11yproject on 3/5/2023?",
+            current_url="http://16.58.174.55:8023/",
+            visible_page_summary="GitLab dashboard",
+            dom_or_ax_snippet='[130] role=textbox name="Search GitLab" clickable',
+        )
+
+        prompt = build_user_prompt(observation, step_idx=0)
+
+        self.assertIn('goto("http://16.58.174.55:8023/explore")', prompt)
+        self.assertNotIn('goto("http://3.14.148.71:8023/explore")', prompt)
+
     def test_gitlab_contribution_goal_surfaces_query_hint(self) -> None:
         observation = NormalizedObservation(
             goal="Tell me who has made the most contributions, in terms of number of commits, to the thoughtbot/administrate project",
@@ -255,6 +308,19 @@ class PromptingTests(unittest.TestCase):
         self.assertIn("repository search query should be close to 'administrate'", prompt)
         self.assertIn('ACTION: fill("250", "administrate")', prompt)
         self.assertIn("Do not swap the bid and the query text.", prompt)
+
+    def test_gitlab_commit_count_goal_surfaces_repo_query_hint(self) -> None:
+        observation = NormalizedObservation(
+            goal="How many commits did kilian make to a11yproject on 3/5/2023?",
+            current_url="http://16.58.174.55:8023/explore",
+            visible_page_summary="GitLab explore",
+            dom_or_ax_snippet='[250] role=searchbox name="Filter by name" clickable',
+        )
+
+        prompt = build_user_prompt(observation, step_idx=1)
+
+        self.assertIn("repository search query should be close to 'a11yproject'", prompt)
+        self.assertIn('ACTION: fill("250", "a11yproject")', prompt)
 
     def test_gitlab_filtered_result_prompt_surfaces_click_hint(self) -> None:
         observation = NormalizedObservation(

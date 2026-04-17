@@ -9,7 +9,7 @@ DEFAULT_MAX_STEPS = 30
 
 DEFAULT_MODEL_ID = "Qwen/Qwen3.5-2B"
 DEFAULT_MODEL_DIR_NAME = "Qwen3.5-2B"
-DEFAULT_OPENAI_JUDGE_MODEL = "gpt-5-mini"
+DEFAULT_OPENAI_JUDGE_MODEL = "gpt-5.4-nano"
 OUTPUT_DIR_NAME = "outputs"
 
 REQUIRED_WA_ENV_VARS = (
@@ -32,6 +32,8 @@ WEBARENA_ENV_ALIASES = (
     ("WA_MAP", "MAP"),
     ("WA_HOMEPAGE", "HOMEPAGE"),
 )
+
+_REPO_ENV_LOADED = False
 
 
 def get_repo_root() -> Path:
@@ -86,9 +88,40 @@ def get_output_dir(*parts: str, create: bool = False) -> Path:
 
 
 def get_env_var(name: str, default: str | None = None, required: bool = False) -> str | None:
+    load_repo_env_file()
     value = os.environ.get(name, default)
     if required and (value is None or value == ""):
         raise RuntimeError(f"Required environment variable is missing: {name}")
+    return value
+
+
+def load_repo_env_file() -> None:
+    global _REPO_ENV_LOADED
+    if _REPO_ENV_LOADED:
+        return
+
+    env_path = get_repo_root() / ".env"
+    if env_path.exists():
+        for raw_line in env_path.read_text(encoding="utf-8").splitlines():
+            line = raw_line.strip()
+            if not line or line.startswith("#"):
+                continue
+            if line.startswith("export "):
+                line = line[len("export ") :].strip()
+            if "=" not in line:
+                continue
+            key, value = line.split("=", 1)
+            key = key.strip()
+            value = _strip_env_quotes(value.strip())
+            if key and key not in os.environ:
+                os.environ[key] = value
+
+    _REPO_ENV_LOADED = True
+
+
+def _strip_env_quotes(value: str) -> str:
+    if len(value) >= 2 and value[0] == value[-1] and value[0] in {'"', "'"}:
+        return value[1:-1]
     return value
 
 

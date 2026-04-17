@@ -69,19 +69,16 @@ def build_family_stages(disjoint_dir: Path) -> list[FamilyStage]:
 def write_stage_csv(out_dir: Path, stages: list[FamilyStage]) -> Path:
     out_dir.mkdir(parents=True, exist_ok=True)
     path = out_dir / "shopping_searchsort_stage_metrics.csv"
+    task_ids = sorted({task_id for stage in stages for task_id in stage.per_task}, key=int)
     with path.open("w", encoding="utf-8", newline="") as handle:
         writer = csv.writer(handle)
-        writer.writerow(["stage", "family_success_rate", "task_324", "task_325", "task_326", "task_327", "task_328"])
+        writer.writerow(["stage", "family_success_rate", *[f"task_{task_id}" for task_id in task_ids]])
         for stage in stages:
             writer.writerow(
                 [
                     stage.label,
                     f"{stage.family_success_rate:.4f}",
-                    f"{stage.per_task['324']:.4f}",
-                    f"{stage.per_task['325']:.4f}",
-                    f"{stage.per_task['326']:.4f}",
-                    f"{stage.per_task['327']:.4f}",
-                    f"{stage.per_task['328']:.4f}",
+                    *[f"{stage.per_task[task_id]:.4f}" for task_id in task_ids],
                 ]
             )
     return path
@@ -107,6 +104,10 @@ def write_run_card(out_dir: Path, stages: list[FamilyStage], *, disjoint_dir: Pa
     rollout_summary = _load_json(disjoint_dir / "rollout_summary.json")
     grpo_summary = _load_json(disjoint_dir / "grpo_summary.json")
     eval_compare = _load_json(disjoint_dir / "eval_compare.json")
+    holdout_task_ids = warmup_summary.get("holdout_task_ids", [])
+    if not holdout_task_ids:
+        train_task_ids = set(warmup_summary["warmup_task_ids"]) | set(warmup_summary["grpo_task_ids"])
+        holdout_task_ids = [task_id for task_id in warmup_summary["eval_task_ids"] if task_id not in train_task_ids]
 
     run_card = {
         "run_name": run_name,
@@ -116,6 +117,7 @@ def write_run_card(out_dir: Path, stages: list[FamilyStage], *, disjoint_dir: Pa
             "warmup_task_ids": warmup_summary["warmup_task_ids"],
             "grpo_task_ids": warmup_summary["grpo_task_ids"],
             "eval_task_ids": warmup_summary["eval_task_ids"],
+            "holdout_task_ids": holdout_task_ids,
         },
         "warmup": {
             "selected_demo_count": warmup_summary["selected_demo_count"],
@@ -147,10 +149,55 @@ def write_run_card(out_dir: Path, stages: list[FamilyStage], *, disjoint_dir: Pa
             "warmup_only_per_task": stages[1].per_task,
             "warmup_plus_grpo_per_task": stages[2].per_task,
         },
+        "holdout": _build_holdout_run_card(stages, holdout_task_ids),
     }
     path = out_dir / "shopping_searchsort_run_card.json"
     path.write_text(json.dumps(run_card, indent=2, sort_keys=True), encoding="utf-8")
     return path
+
+
+def _build_holdout_run_card(stages: list[FamilyStage], holdout_task_ids: list[int]) -> dict[str, object]:
+    if not holdout_task_ids:
+        return {
+            "task_ids": [],
+            "baseline_success_rate": 0.0,
+            "warmup_success_rate": 0.0,
+            "grpo_success_rate": 0.0,
+            "gain_vs_baseline": 0.0,
+            "gain_vs_warmup": 0.0,
+            "per_task": {},
+        }
+
+    holdout_keys = [str(task_id) for task_id in holdout_task_ids]
+    baseline = _subset_mean(stages[0].per_task, holdout_keys)
+    warmup = _subset_mean(stages[1].per_task, holdout_keys)
+    grpo = _subset_mean(stages[2].per_task, holdout_keys)
+    per_task = {
+        task_id: {
+            "baseline_success_rate": stages[0].per_task[task_id],
+            "warmup_success_rate": stages[1].per_task[task_id],
+            "grpo_success_rate": stages[2].per_task[task_id],
+            "gain_vs_baseline": stages[2].per_task[task_id] - stages[0].per_task[task_id],
+            "gain_vs_warmup": stages[2].per_task[task_id] - stages[1].per_task[task_id],
+        }
+        for task_id in holdout_keys
+    }
+    return {
+        "task_ids": holdout_task_ids,
+        "baseline_success_rate": baseline,
+        "warmup_success_rate": warmup,
+        "grpo_success_rate": grpo,
+        "gain_vs_baseline": grpo - baseline,
+        "gain_vs_warmup": grpo - warmup,
+        "per_task": per_task,
+    }
+
+
+def _subset_mean(per_task: dict[str, float], task_ids: list[str]) -> float:
+    if not task_ids:
+        return 0.0
+    values = [per_task[task_id] for task_id in task_ids]
+    return sum(values) / len(values)
 
 
 def plot_family_success(out_dir: Path, stages: list[FamilyStage], *, title_suffix: str) -> Path:

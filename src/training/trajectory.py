@@ -76,6 +76,38 @@ class OptimizationSample:
         return asdict(self)
 
 
+def compute_step_sample_weights(trajectory: EpisodeTrajectory) -> list[tuple[TrajectoryStep, float]]:
+    """Assign normalized per-step weights that emphasize clean terminal behavior."""
+
+    response_steps = [step for step in trajectory.steps if step.response_text]
+    if not response_steps:
+        return []
+    if len(response_steps) == 1:
+        return [(response_steps[0], 1.0)]
+
+    raw_weights: list[float] = []
+    for step_rank, step in enumerate(response_steps):
+        weight = 1.0
+        weight += 0.5 * (step_rank / max(1, len(response_steps) - 1))
+        if trajectory.success and step.done:
+            weight += 1.0
+        if step.last_action_error is not None:
+            weight *= 0.25
+        if step.parse_error is not None:
+            weight *= 0.25
+        raw_weights.append(max(weight, 0.05))
+
+    total_weight = sum(raw_weights)
+    if total_weight <= 0.0:
+        uniform_weight = 1.0 / len(response_steps)
+        return [(step, uniform_weight) for step in response_steps]
+
+    return [
+        (step, raw_weight / total_weight)
+        for step, raw_weight in zip(response_steps, raw_weights)
+    ]
+
+
 def load_episode_trajectory(out_dir: str | Path) -> EpisodeTrajectory:
     """Load runner artifacts and reconstruct prompts for training."""
 

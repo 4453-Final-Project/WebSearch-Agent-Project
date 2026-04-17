@@ -10,7 +10,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 from src.agent.prompting import derive_shopping_order_number, derive_shopping_query_hint, derive_shopping_sort_hint
-from src.utils.config import get_workspace_root
+from src.utils.config import get_env_var, get_workspace_root
 
 
 BOOTSTRAP_TASK_IDS = (0, 1, 41, 70, 71, 254, 293, 308, 310)
@@ -101,6 +101,35 @@ SHOPPING_ORDER_TASK_IDS = (
     359,
     360,
     361,
+    362,
+)
+SHOPPING_ORDER_EXACT_TASK_IDS = (
+    128,
+    129,
+    130,
+    131,
+    188,
+    189,
+    190,
+    192,
+    193,
+    194,
+    195,
+    196,
+    197,
+    198,
+    199,
+    200,
+    231,
+    232,
+    233,
+    319,
+    320,
+    321,
+    322,
+    323,
+    358,
+    360,
     362,
 )
 
@@ -242,10 +271,7 @@ def get_scripted_warmup_policy(task_id: int) -> ScriptedActionSequencePolicy:
 
 
 def _required_env(name: str) -> str:
-    value = os.environ.get(name, "").strip()
-    if not value:
-        raise ValueError(f"{name} must be set to build scripted warmup policies.")
-    return value
+    return str(get_env_var(name, required=True)).strip()
 
 
 @lru_cache(maxsize=1)
@@ -373,7 +399,9 @@ def _build_shopping_order_policy(task_id: int, env: DemoEnvironment) -> Scripted
     task = _load_task(task_id)
     goal = str(task.get("intent", ""))
     answer = _resolve_order_reference_answer(task, env.token_mapping())
-    if _shopping_order_uses_admin_site(task):
+    if _shopping_order_uses_admin_site(task) and _shopping_admin_dashboard_can_answer_from_quantity_widget(goal):
+        actions: list[str] = []
+    elif _shopping_order_uses_admin_site(task):
         actions = [f'goto("{_shopping_admin_orders_url(env)}")']
     else:
         shopping_base = env.shopping_url.rstrip("/")
@@ -432,6 +460,11 @@ def _shopping_order_uses_admin_site(task: dict[str, object]) -> bool:
 def _shopping_admin_orders_url(env: DemoEnvironment) -> str:
     admin_base = env.shopping_admin_url.rstrip("/")
     return f"{admin_base}/sales/order/"
+
+
+def _shopping_admin_dashboard_can_answer_from_quantity_widget(goal: str) -> bool:
+    lowered = " ".join((goal or "").lower().split())
+    return "items sold" in lowered and "most recent" in lowered
 
 
 _EXPLICIT_POLICY_BUILDERS = {

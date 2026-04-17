@@ -1,0 +1,40 @@
+Current best results:
+
+Benchmarks from full shopping run with Qwen:
+- Family: 32 tasks
+- Train tasks: 26
+- Holdout tasks: 6
+- Baseline family score: 0.750000
+- Warmup family score: 0.765625
+- Warmup + GRPO family score: 0.796875
+- Baseline holdout score: 0.833333
+- Warmup holdout score: 0.916667
+- Warmup + GRPO holdout score: 0.916667
+
+Take away from this is that the GRPO pipeline is working and at least isn't destabilizing the model, however the small task suite limits the model's ability to improve from binary reward signals and warmup still has a much greater effect on the model's abilities within the narrow scope of the shopping tasks.
+
+Current shopping_exact stack score
+- Current family score: 0.968750
+- Current family result: 31/32
+- Current holdout score: 1.000000
+- Current holdout result: 6/6
+
+Current broader shopping stack
+- Current shopping_full stack: 47/48
+
+Current cross-site bootstrap stack
+- Baseline bootstrap41 score: 12/41 = 0.292683
+- Current bootstrap41 score: 21/41 = 0.512195
+
+Log files to see improvements
+- outputs/qwen_shopping_exact_curriculum_v1/family_summary.json
+- outputs/qwen_shopping_exact_current_stack_summary.json
+- outputs/bootstrap41_current_stack_summary.json
+
+How to run inference with the trained adapter
+- Warmup adapter: C:\Users\tyler\school\RL\outputs\qwen_shopping_exact_curriculum_v1\warmup_adapter
+- GRPO adapter: C:\Users\tyler\school\RL\outputs\qwen_shopping_exact_curriculum_v1\checkpoints\iter_0000\adapter
+- Example single episode:
+  python scripts/run_single_task.py --policy qwen --task-id 324 --model-path C:\Users\tyler\school\RL\outputs\qwen_shopping_exact_curriculum_v1\checkpoints\iter_0000\adapter
+- Example multi-episode eval:
+  python scripts/eval_single_task.py --policy qwen --task-id 324 --episodes 5 --model-path C:\Users\tyler\school\RL\outputs\qwen_shopping_exact_curriculum_v1\checkpoints\iter_0000\adapter

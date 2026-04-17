@@ -9,7 +9,11 @@ import torch
 from .checkpointing import CheckpointManager
 from .collector import RolloutCollector
 from .ppo import compute_clipped_policy_objective
-from .rewards import RewardConfig, build_optimization_samples, compute_episode_score
+from .rewards import (
+    RewardConfig,
+    build_optimization_samples,
+    compute_episode_reward_breakdown,
+)
 from .trajectory import EpisodeTrajectory, OptimizationSample
 
 
@@ -138,6 +142,9 @@ class GRPOTrainer:
                 "step_count": rollout_summary["step_count"],
                 "invalid_actions": rollout_summary["invalid_actions"],
                 "parse_failures": rollout_summary["parse_failures"],
+                "repeat_actions": rollout_summary["repeat_actions"],
+                "same_page_repeat_actions": rollout_summary["same_page_repeat_actions"],
+                "unique_urls": rollout_summary["unique_urls"],
                 "reference_penalty": latest_reference_penalty,
                 "approx_kl": latest_approx_kl,
                 "ratio_mean": latest_ratio_mean,
@@ -166,12 +173,21 @@ class GRPOTrainer:
         step_count = 0
         invalid_actions = 0
         parse_failures = 0
+        repeat_actions = 0
+        same_page_repeat_actions = 0
+        unique_urls = 0
 
         for group_idx, group in enumerate(grouped_episodes):
-            group_scores = [compute_episode_score(episode, self.reward_config) for episode in group]
+            group_breakdowns = [compute_episode_reward_breakdown(episode, self.reward_config) for episode in group]
+            group_scores = [float(breakdown["total_score"]) for breakdown in group_breakdowns]
             group_advantages = compute_group_advantages(group_scores)
             model_system_prompt = getattr(getattr(self.policy, "config", None), "system_prompt", None)
-            for episode, episode_score, advantage in zip(group, group_scores, group_advantages):
+            for episode, episode_score, advantage, reward_breakdown in zip(
+                group,
+                group_scores,
+                group_advantages,
+                group_breakdowns,
+            ):
                 samples.extend(
                     build_optimization_samples(
                         episode,
@@ -187,6 +203,9 @@ class GRPOTrainer:
                 step_count += episode.steps_taken
                 invalid_actions += episode.invalid_action_count
                 parse_failures += episode.parse_failure_count
+                repeat_actions += int(reward_breakdown["repeat_action_count"])
+                same_page_repeat_actions += int(reward_breakdown["same_page_repeat_action_count"])
+                unique_urls += int(reward_breakdown["unique_url_count"])
 
         summary = {
             "average_episode_score": sum(all_scores) / max(1, len(all_scores)),
@@ -194,6 +213,9 @@ class GRPOTrainer:
             "step_count": step_count,
             "invalid_actions": invalid_actions,
             "parse_failures": parse_failures,
+            "repeat_actions": repeat_actions,
+            "same_page_repeat_actions": same_page_repeat_actions,
+            "unique_urls": unique_urls,
         }
         return samples, summary
 

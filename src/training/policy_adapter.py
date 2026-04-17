@@ -182,11 +182,8 @@ class TrainableQwenPolicy:
 
         import transformers
 
-        model_kwargs: dict[str, Any] = {
-            "local_files_only": True,
-            "device_map": self.config.device or "auto",
-            "torch_dtype": "auto",
-        }
+        load_device = self._resolve_load_device()
+        model_kwargs = self._build_trainable_model_kwargs()
 
         tokenizer = transformers.AutoTokenizer.from_pretrained(
             self.model_path,
@@ -206,6 +203,7 @@ class TrainableQwenPolicy:
         else:
             model = transformers.AutoModelForCausalLM.from_pretrained(self.model_path, **model_kwargs)
             model = prepare_lora_model(model, self.config.lora)
+        model = model.to(load_device)
         model.config.use_cache = False
         if hasattr(model, "gradient_checkpointing_enable"):
             model.gradient_checkpointing_enable()
@@ -251,6 +249,21 @@ class TrainableQwenPolicy:
         if hasattr(model, "disable_adapter"):
             return model.disable_adapter()
         return nullcontext()
+
+    def _resolve_load_device(self) -> torch.device:
+        configured_device = self.config.device
+        if configured_device:
+            return torch.device(configured_device)
+        if torch.cuda.is_available():
+            return torch.device("cuda")
+        return torch.device("cpu")
+
+    def _build_trainable_model_kwargs(self) -> dict[str, Any]:
+        return {
+            "local_files_only": True,
+            "torch_dtype": "auto",
+            "low_cpu_mem_usage": False,
+        }
 
     def _split_prompt(self, prompt: str) -> tuple[str, str]:
         separator = "\n\n"

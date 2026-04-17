@@ -59,6 +59,14 @@ class ValidateFinalResultsTests(unittest.TestCase):
 
         self.assertTrue(any("run_card.rollout_collection.success_count" in error for error in errors))
 
+    def test_validate_final_results_reports_holdout_mismatch(self) -> None:
+        run_card = _build_run_card()
+        run_card["holdout"]["gain_vs_warmup"] = 0.5
+
+        errors = validate_final_results(_build_summary(), run_card)
+
+        self.assertTrue(any("run_card.holdout.gain_vs_warmup" in error for error in errors))
+
 
 if __name__ == "__main__":
     unittest.main()

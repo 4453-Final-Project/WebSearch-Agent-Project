@@ -44,6 +44,7 @@ COMMON_ARGS=(
   --eval-task-id 326
   --eval-task-id 327
   --eval-task-id 328
+  --holdout-task-id 324
   --warmup-demo-dir "$WORKSPACE_ROOT/outputs/shopping_searchsort_warmup_demos_v1"
   --warmup-demo-limit-per-task 3
   --warmup-epochs 1

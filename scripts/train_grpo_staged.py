@@ -47,6 +47,14 @@ def build_arg_parser() -> argparse.ArgumentParser:
         help="Optional evaluation task ids. Defaults to the GRPO task ids when omitted.",
     )
     parser.add_argument(
+        "--holdout-task-id",
+        action="append",
+        type=int,
+        dest="holdout_task_ids",
+        default=[],
+        help="Optional holdout task ids that must stay disjoint from warmup and GRPO training.",
+    )
+    parser.add_argument(
         "--allow-task-overlap",
         action=argparse.BooleanOptionalAction,
         default=False,
@@ -128,6 +136,7 @@ def _run_warmup(args, out_dir: Path) -> int:
         "warmup_task_ids": args.warmup_task_ids,
         "grpo_task_ids": args.task_ids,
         "eval_task_ids": args.eval_task_ids,
+        "holdout_task_ids": args.holdout_task_ids,
         "selected_demo_count": len(trajectories),
         "selected_demo_task_counts": _count_trajectories_by_task(trajectories),
         "warmup_metrics": warmup_metrics,
@@ -151,15 +160,18 @@ def _run_collect(args, out_dir: Path) -> int:
                 group_idx = task_offset * args.groups_per_task + group_local_idx
                 episode_seed = base_seed + (group_idx * 10) + member_idx
                 episode_dir = root_dir / f"task_{task_id}" / f"group_{group_local_idx:04d}" / f"episode_{member_idx:04d}"
-                run_episode(
-                    policy,
-                    task_id,
-                    episode_seed,
-                    args.max_steps,
-                    str(episode_dir),
-                    headless=args.headless,
-                )
-                trajectory = load_episode_trajectory(episode_dir)
+                if (episode_dir / "episode.json").exists():
+                    trajectory = load_episode_trajectory(episode_dir)
+                else:
+                    run_episode(
+                        policy,
+                        task_id,
+                        episode_seed,
+                        args.max_steps,
+                        str(episode_dir),
+                        headless=args.headless,
+                    )
+                    trajectory = load_episode_trajectory(episode_dir)
                 summaries.append(
                     {
                         "task_id": task_id,
@@ -178,6 +190,7 @@ def _run_collect(args, out_dir: Path) -> int:
         "stage": "collect",
         "warmup_task_ids": args.warmup_task_ids,
         "grpo_task_ids": args.task_ids,
+        "holdout_task_ids": args.holdout_task_ids,
         "episode_count": len(summaries),
         "success_count": sum(1 for item in summaries if item["success"]),
         "task_success_counts": {
@@ -215,12 +228,16 @@ def _run_grpo(args, out_dir: Path) -> int:
 
 
 def _run_eval(args, out_dir: Path) -> int:
+    warmup_eval = _evaluate_adapter(args, out_dir / "warmup_adapter", out_dir / "eval_warmup")
+    grpo_eval = _evaluate_adapter(args, out_dir / "checkpoints" / f"iter_{args.iterations - 1:04d}" / "adapter", out_dir / "eval_grpo")
     summary = {
         "warmup_task_ids": args.warmup_task_ids,
         "grpo_task_ids": args.task_ids,
         "eval_task_ids": args.eval_task_ids,
-        "warmup_eval": _evaluate_adapter(args, out_dir / "warmup_adapter", out_dir / "eval_warmup"),
-        "grpo_eval": _evaluate_adapter(args, out_dir / "checkpoints" / f"iter_{args.iterations - 1:04d}" / "adapter", out_dir / "eval_grpo"),
+        "holdout_task_ids": args.holdout_task_ids,
+        "warmup_eval": warmup_eval,
+        "grpo_eval": grpo_eval,
+        "holdout_eval": _build_holdout_eval_summary(args.holdout_task_ids, warmup_eval, grpo_eval),
     }
     _write_json(out_dir / "eval_compare.json", summary)
     print(json.dumps(summary, indent=2))
@@ -228,9 +245,15 @@ def _run_eval(args, out_dir: Path) -> int:
 
 
 def _evaluate_adapter(args, model_path: Path, output_root: Path) -> dict[str, object]:
-    policy = _build_policy(args, model_path=str(model_path), temperature=args.eval_temperature)
     results: dict[str, object] = {}
+    policy = None
     for task_id in args.eval_task_ids:
+        metrics_path = output_root / f"task_{task_id}" / "metrics.json"
+        if metrics_path.exists():
+            results[str(task_id)] = json.loads(metrics_path.read_text(encoding="utf-8"))
+            continue
+        if policy is None:
+            policy = _build_policy(args, model_path=str(model_path), temperature=args.eval_temperature)
         results[str(task_id)] = evaluate_single_task(
             policy=policy,
             task_id=task_id,
@@ -277,6 +300,7 @@ def _normalize_stage_task_sets(args) -> None:
     args.task_ids = list(dict.fromkeys(args.task_ids))
     explicit_warmup_ids = list(dict.fromkeys(args.warmup_task_ids))
     explicit_eval_ids = list(dict.fromkeys(args.eval_task_ids))
+    explicit_holdout_ids = list(dict.fromkeys(args.holdout_task_ids))
 
     if explicit_warmup_ids and not args.allow_task_overlap:
         overlap = sorted(set(explicit_warmup_ids) & set(args.task_ids))
@@ -289,7 +313,79 @@ def _normalize_stage_task_sets(args) -> None:
             )
 
     args.warmup_task_ids = explicit_warmup_ids or list(args.task_ids)
-    args.eval_task_ids = explicit_eval_ids or list(args.task_ids)
+
+    if explicit_holdout_ids:
+        train_task_ids = set(args.task_ids) | set(args.warmup_task_ids)
+        overlap = sorted(train_task_ids & set(explicit_holdout_ids))
+        if overlap:
+            overlap_text = ", ".join(str(task_id) for task_id in overlap)
+            raise SystemExit(
+                "Holdout task ids must be disjoint from warmup and GRPO task ids. "
+                f"Overlapping task ids: {overlap_text}."
+            )
+
+    if explicit_eval_ids:
+        args.eval_task_ids = explicit_eval_ids
+    elif explicit_holdout_ids:
+        args.eval_task_ids = list(explicit_holdout_ids)
+    else:
+        args.eval_task_ids = list(args.task_ids)
+
+    if explicit_holdout_ids:
+        missing = [task_id for task_id in explicit_holdout_ids if task_id not in args.eval_task_ids]
+        if missing:
+            missing_text = ", ".join(str(task_id) for task_id in missing)
+            raise SystemExit(
+                "Holdout task ids must also be included in the evaluation task ids. "
+                f"Missing from eval set: {missing_text}."
+            )
+
+    inferred_holdout_ids = [
+        task_id
+        for task_id in args.eval_task_ids
+        if task_id not in args.task_ids and task_id not in args.warmup_task_ids
+    ]
+    args.holdout_task_ids = explicit_holdout_ids or inferred_holdout_ids
+
+
+def _build_holdout_eval_summary(
+    holdout_task_ids: list[int],
+    warmup_eval: dict[str, object],
+    grpo_eval: dict[str, object],
+) -> dict[str, object]:
+    if not holdout_task_ids:
+        return {
+            "task_ids": [],
+            "warmup_success_rate": 0.0,
+            "grpo_success_rate": 0.0,
+            "absolute_gain": 0.0,
+            "per_task": {},
+        }
+
+    per_task: dict[str, object] = {}
+    warmup_values: list[float] = []
+    grpo_values: list[float] = []
+    for task_id in holdout_task_ids:
+        task_key = str(task_id)
+        warmup_success = float(warmup_eval[task_key]["success_rate"])
+        grpo_success = float(grpo_eval[task_key]["success_rate"])
+        warmup_values.append(warmup_success)
+        grpo_values.append(grpo_success)
+        per_task[task_key] = {
+            "warmup_success_rate": warmup_success,
+            "grpo_success_rate": grpo_success,
+            "absolute_gain": grpo_success - warmup_success,
+        }
+
+    warmup_success_rate = sum(warmup_values) / len(warmup_values)
+    grpo_success_rate = sum(grpo_values) / len(grpo_values)
+    return {
+        "task_ids": holdout_task_ids,
+        "warmup_success_rate": warmup_success_rate,
+        "grpo_success_rate": grpo_success_rate,
+        "absolute_gain": grpo_success_rate - warmup_success_rate,
+        "per_task": per_task,
+    }
 
 
 def _select_warmup_trajectories(paths: list[str], task_ids: list[int], limit_per_task: int) -> list[EpisodeTrajectory]:

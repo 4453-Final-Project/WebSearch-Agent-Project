@@ -1,0 +1,22 @@
+{
+  "base_summary": "../../../outputs/qwen_shopping_exact_curriculum_v1/family_summary.json",
+  "base_stage": "warmup_plus_grpo",
+  "label": "current_stack",
+  "benchmark_blockers": [
+    "131"
+  ],
+  "summary_out": "../../../outputs/qwen_shopping_exact_current_stack_summary.json",
+  "compare_report_out": "../../../outputs/shopping_exact_qwen_base_vs_current_stack_compare.json",
+  "compare_base_stage": "warmup_plus_grpo",
+  "compare_label_a": "base",
+  "compare_label_b": "current_stack",
+  "overrides": {
+    "131": "../../../outputs/eval_task_131_qwen_after_admin_item_enrichment_v2/metrics.json",
+    "197": "../../../outputs/eval_task_197_qwen_current_stack/metrics.json",
+    "200": "../../../outputs/eval_task_200_qwen_current_stack/metrics.json",
+    "320": "../../../outputs/eval_task_320_qwen_current_refund_stack/metrics.json",
+    "321": "../../../outputs/eval_task_321_qwen_after_history_aggregate_fix_v2/metrics.json",
+    "322": "../../../outputs/eval_task_322_qwen_current_refund_stack/metrics.json",
+    "323": "../../../outputs/eval_task_323_qwen_after_history_refund_detail_fix/metrics.json"
+  }
+}

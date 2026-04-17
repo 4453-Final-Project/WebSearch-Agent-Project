@@ -32,6 +32,7 @@ EXPECTED_RUN_CARD = {
         "warmup_task_ids": [325, 326],
         "grpo_task_ids": [327, 328],
         "eval_task_ids": [324, 325, 326, 327, 328],
+        "holdout_task_ids": [324],
     },
     "warmup": {
         "selected_demo_count": 6,
@@ -48,6 +49,14 @@ EXPECTED_RUN_CARD = {
     "grpo": {
         "iteration_count": 1,
         "family_success_rate": 1.00,
+    },
+    "holdout": {
+        "task_ids": [324],
+        "baseline_success_rate": 0.00,
+        "warmup_success_rate": 0.00,
+        "grpo_success_rate": 1.00,
+        "gain_vs_baseline": 1.00,
+        "gain_vs_warmup": 1.00,
     },
 }
 
@@ -135,6 +144,17 @@ def validate_final_results(summary: dict[str, object], run_card: dict[str, objec
                 _assert_close(f"run_card.grpo.{key}", float(actual), expected_value, errors)
             else:
                 _assert_equal(f"run_card.grpo.{key}", actual, expected_value, errors)
+
+    holdout = run_card.get("holdout")
+    if not isinstance(holdout, dict):
+        errors.append("run_card.holdout: missing holdout section")
+    else:
+        for key, expected_value in EXPECTED_RUN_CARD["holdout"].items():
+            actual = holdout.get(key)
+            if isinstance(expected_value, float):
+                _assert_close(f"run_card.holdout.{key}", float(actual), expected_value, errors)
+            else:
+                _assert_equal(f"run_card.holdout.{key}", actual, expected_value, errors)
 
     return errors
 
