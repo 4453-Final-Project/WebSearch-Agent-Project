@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import random
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Iterable, Sequence
 
@@ -10,7 +10,12 @@ import torch
 from src.agent.compat import normalize_observation
 from src.agent.prompting import build_site_hints, build_system_prompt, describe_editable_controls
 
-from .trajectory import EpisodeTrajectory, compute_step_sample_weights, load_episode_trajectory
+from .trajectory import (
+    EpisodeTrajectory,
+    SampleWeightConfig,
+    compute_step_sample_weights,
+    load_episode_trajectory,
+)
 
 
 @dataclass(slots=True)
@@ -26,6 +31,7 @@ class WarmupConfig:
     max_visible_chars: int = 320
     max_dom_chars: int = 480
     max_history_items: int = 3
+    sample_weight_config: SampleWeightConfig = field(default_factory=SampleWeightConfig)
 
 
 @dataclass(slots=True)
@@ -92,12 +98,16 @@ def build_warmup_samples(
     trajectories: Sequence[EpisodeTrajectory],
     *,
     model_system_prompt: str | None = None,
+    sample_weight_config: SampleWeightConfig | None = None,
 ) -> list[WarmupSample]:
     """Convert demo trajectories into supervised prompt/response pairs."""
 
     samples: list[WarmupSample] = []
     for trajectory in trajectories:
-        for step, sample_weight in compute_step_sample_weights(trajectory):
+        for step, sample_weight in compute_step_sample_weights(
+            trajectory,
+            config=sample_weight_config,
+        ):
             samples.append(
                 WarmupSample(
                     prompt=build_compact_warmup_prompt(step, model_system_prompt=model_system_prompt),
@@ -123,7 +133,11 @@ def run_supervised_warmup(policy, trajectories: Sequence[EpisodeTrajectory], con
 
     usable_trajectories = [trajectory for trajectory in trajectories if trajectory.success or not config.success_only]
     model_system_prompt = getattr(getattr(policy, "config", None), "system_prompt", None)
-    samples = build_warmup_samples(usable_trajectories, model_system_prompt=model_system_prompt)
+    samples = build_warmup_samples(
+        usable_trajectories,
+        model_system_prompt=model_system_prompt,
+        sample_weight_config=config.sample_weight_config,
+    )
     if not usable_trajectories or not samples:
         raise RuntimeError("Warmup requested but no usable demonstration trajectories were found.")
 

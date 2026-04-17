@@ -20,7 +20,7 @@ from src.training.grpo import GRPOConfig, GRPOTrainer  # noqa: E402
 from src.training.peft_setup import LoRAConfig  # noqa: E402
 from src.training.policy_adapter import PolicyAdapterConfig, TrainableQwenPolicy  # noqa: E402
 from src.training.rewards import RewardConfig  # noqa: E402
-from src.training.trajectory import EpisodeTrajectory, load_episode_trajectory  # noqa: E402
+from src.training.trajectory import EpisodeTrajectory, SampleWeightConfig, load_episode_trajectory  # noqa: E402
 from src.training.warmup import WarmupConfig, load_demo_trajectories, run_supervised_warmup  # noqa: E402
 from src.utils.config import DEFAULT_MAX_STEPS, DEFAULT_SEED, get_output_dir, resolve_model_path  # noqa: E402
 from src.utils.model_profiles import DEFAULT_QWEN_PROFILE, find_model_profile_by_dir_name  # noqa: E402
@@ -104,6 +104,10 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--per-step-penalty", type=float, default=0.01)
     parser.add_argument("--success-unique-url-bonus", type=float, default=0.02)
     parser.add_argument("--max-unique-url-bonus-urls", type=int, default=4)
+    parser.add_argument("--step-weight-later-step-bonus", type=float, default=0.5)
+    parser.add_argument("--step-weight-terminal-success-bonus", type=float, default=1.0)
+    parser.add_argument("--step-weight-error-step-multiplier", type=float, default=0.25)
+    parser.add_argument("--step-weight-min", type=float, default=0.05)
     parser.add_argument("--headless", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument(
         "--out-dir",
@@ -142,6 +146,7 @@ def _run_warmup(args, out_dir: Path) -> int:
             max_grad_norm=args.max_grad_norm,
             success_only=True,
             shuffle_seed=args.seed,
+            sample_weight_config=_build_sample_weight_config(args),
         ),
     )
     adapter_dir = out_dir / "warmup_adapter"
@@ -255,6 +260,16 @@ def _build_reward_config(args) -> RewardConfig:
         per_step_penalty=args.per_step_penalty,
         success_unique_url_bonus=args.success_unique_url_bonus,
         max_unique_url_bonus_urls=args.max_unique_url_bonus_urls,
+        sample_weight_config=_build_sample_weight_config(args),
+    )
+
+
+def _build_sample_weight_config(args) -> SampleWeightConfig:
+    return SampleWeightConfig(
+        later_step_bonus=args.step_weight_later_step_bonus,
+        terminal_success_bonus=args.step_weight_terminal_success_bonus,
+        error_step_multiplier=args.step_weight_error_step_multiplier,
+        min_step_weight=args.step_weight_min,
     )
 
 

@@ -42,6 +42,7 @@ Latest larger-family signal on the executable `shopping_exact` curriculum:
 - `outputs/qwen_shopping_full_curriculum_v4_devicefix/` is now complete with baseline `47/48` and both warmup-only and warmup + GRPO at `46/48`, so the broader shopping family is now mainly a stack-quality benchmark and no longer the best place to measure training lift
 - `outputs/qwen_bootstrap41_curriculum_v3_mapfix/` is also complete with baseline, warmup-only, and warmup + GRPO all flat at `12/41`, which is the clearest current evidence that the previous warmup/GRPO sample weighting was too diffuse on the broader cross-site family
 - both warmup and GRPO now use step-aware sample weighting that emphasizes later clean steps and successful terminal answer steps while downweighting invalid or parse-failed steps
+- those step-aware sample-weight knobs are now exposed on the staged and family runners too, so cross-site reruns can tune terminal-step emphasis and error-step downweighting from the CLI instead of requiring another source edit
 - current cross-site rerun to watch: `outputs/qwen_bootstrap41_curriculum_v4_weightedfix/`, launched on the same checked-in `bootstrap41` split so the new weighted-training stack can be compared directly against `v3_mapfix`
 - the optional local quantized path is now wired too: `outputs/qwen_shopping_full_warmup_smoke_v2_qlora/` completed a real `bnb_4bit` warmup smoke on the WSL GPU stack, and the current quantized bootstrap rerun to watch is `outputs/qwen_bootstrap41_curriculum_v6_qlora/`
 
@@ -93,6 +94,7 @@ Fast local experiment target:
 All runnable scripts accept `--model-dir-name` or `--model-path`, so you can swap local checkpoints without editing code.
 For detached local QLoRA-style bootstrap runs, use `scripts/local/run_qwen_bootstrap41_curriculum_qlora_tmux.sh` or `.ps1`.
 For the stronger quantized reward-shaped variant, use `scripts/local/run_qwen_bootstrap41_curriculum_qlora_rewardtune_tmux.sh` or `.ps1`.
+For the stronger quantized reward-shaped plus step-weight-tuned variant, use `scripts/local/run_qwen_bootstrap41_curriculum_qlora_stepweight_tune_tmux.sh` or `.ps1`.
 
 ## Setup
 

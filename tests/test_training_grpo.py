@@ -24,7 +24,7 @@ from src.training.rewards import (
     compute_episode_reward_breakdown,
     compute_episode_score,
 )
-from src.training.trajectory import EpisodeTrajectory, TrajectoryStep
+from src.training.trajectory import EpisodeTrajectory, SampleWeightConfig, TrajectoryStep
 
 
 class FakePolicy:
@@ -247,6 +247,34 @@ class TrainingHelpersTests(unittest.TestCase):
         self.assertLess(samples[1].sample_weight, samples[0].sample_weight)
         self.assertLess(samples[2].sample_weight, samples[0].sample_weight)
         self.assertAlmostEqual(sum(sample.sample_weight for sample in samples), 1.0, places=5)
+
+    def test_optimization_samples_respect_custom_step_weight_config(self) -> None:
+        episode = make_episode(seed=14, reward=1.0, success=True, step_count=3)
+        episode.steps[-1].action_text = 'send_msg_to_user("done")'
+        episode.steps[-1].response_text = 'ACTION: send_msg_to_user("done")'
+        episode.steps[-1].raw_text = 'ACTION: send_msg_to_user("done")'
+
+        default_samples = build_optimization_samples(
+            episode,
+            group_id=0,
+            episode_score=1.0,
+            advantage=1.0,
+        )
+        tuned_samples = build_optimization_samples(
+            episode,
+            group_id=0,
+            episode_score=1.0,
+            advantage=1.0,
+            sample_weight_config=SampleWeightConfig(
+                later_step_bonus=0.0,
+                terminal_success_bonus=3.0,
+                error_step_multiplier=0.5,
+                min_step_weight=0.01,
+            ),
+        )
+
+        self.assertGreater(tuned_samples[-1].sample_weight, default_samples[-1].sample_weight)
+        self.assertAlmostEqual(sum(sample.sample_weight for sample in tuned_samples), 1.0, places=5)
 
     def test_weighted_policy_objective_respects_sample_weights(self) -> None:
         stats = compute_clipped_policy_objective(

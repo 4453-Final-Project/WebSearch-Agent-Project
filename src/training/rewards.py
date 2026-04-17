@@ -1,12 +1,18 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from src.agent.compat import normalize_observation
 from src.agent.prompting import build_full_prompt
 
 from .warmup import build_compact_warmup_prompt
-from .trajectory import EpisodeTrajectory, OptimizationSample, TrajectoryStep, compute_step_sample_weights
+from .trajectory import (
+    EpisodeTrajectory,
+    OptimizationSample,
+    SampleWeightConfig,
+    TrajectoryStep,
+    compute_step_sample_weights,
+)
 
 
 @dataclass(slots=True)
@@ -24,6 +30,7 @@ class RewardConfig:
     per_step_penalty: float = 0.01
     success_unique_url_bonus: float = 0.02
     max_unique_url_bonus_urls: int = 4
+    sample_weight_config: SampleWeightConfig = field(default_factory=SampleWeightConfig)
 
 
 def compute_episode_score(trajectory: EpisodeTrajectory, config: RewardConfig) -> float:
@@ -101,12 +108,16 @@ def build_optimization_samples(
     episode_score: float,
     advantage: float,
     model_system_prompt: str | None = None,
+    sample_weight_config: SampleWeightConfig | None = None,
 ) -> list[OptimizationSample]:
     """Convert a trajectory into prompt/response training samples."""
 
     samples: list[OptimizationSample] = []
     episode_id = f"seed-{trajectory.seed}"
-    weighted_steps = compute_step_sample_weights(trajectory)
+    weighted_steps = compute_step_sample_weights(
+        trajectory,
+        config=sample_weight_config,
+    )
     for step, sample_weight in weighted_steps:
         if not step.response_text:
             continue
@@ -202,4 +213,3 @@ def _compute_success_unique_url_bonus(
         return 0.0
     rewarded_unique_urls = max(0, min(unique_url_count, max_unique_url_bonus_urls) - 1)
     return rewarded_unique_urls * success_unique_url_bonus
-

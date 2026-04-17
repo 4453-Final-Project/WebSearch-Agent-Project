@@ -51,6 +51,14 @@ class RunFamilyCurriculumTests(unittest.TestCase):
                 "--quant-type",
                 "nf4",
                 "--no-quant-use-double-quant",
+                "--step-weight-later-step-bonus",
+                "0.8",
+                "--step-weight-terminal-success-bonus",
+                "1.4",
+                "--step-weight-error-step-multiplier",
+                "0.3",
+                "--step-weight-min",
+                "0.07",
             ]
         )
 
@@ -58,6 +66,10 @@ class RunFamilyCurriculumTests(unittest.TestCase):
         self.assertEqual(args.quant_compute_dtype, "float16")
         self.assertEqual(args.quant_type, "nf4")
         self.assertFalse(args.quant_use_double_quant)
+        self.assertEqual(args.step_weight_later_step_bonus, 0.8)
+        self.assertEqual(args.step_weight_terminal_success_bonus, 1.4)
+        self.assertEqual(args.step_weight_error_step_multiplier, 0.3)
+        self.assertEqual(args.step_weight_min, 0.07)
 
     def test_resolve_preflight_out_path_uses_explicit_path(self) -> None:
         args = build_arg_parser().parse_args(["--preflight-out", "C:\\tmp\\preflight.json"])

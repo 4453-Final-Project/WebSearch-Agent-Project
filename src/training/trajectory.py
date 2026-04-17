@@ -76,9 +76,23 @@ class OptimizationSample:
         return asdict(self)
 
 
-def compute_step_sample_weights(trajectory: EpisodeTrajectory) -> list[tuple[TrajectoryStep, float]]:
+@dataclass(slots=True)
+class SampleWeightConfig:
+    """Knobs for per-step optimization weighting inside one trajectory."""
+
+    later_step_bonus: float = 0.5
+    terminal_success_bonus: float = 1.0
+    error_step_multiplier: float = 0.25
+    min_step_weight: float = 0.05
+
+
+def compute_step_sample_weights(
+    trajectory: EpisodeTrajectory,
+    config: SampleWeightConfig | None = None,
+) -> list[tuple[TrajectoryStep, float]]:
     """Assign normalized per-step weights that emphasize clean terminal behavior."""
 
+    config = config or SampleWeightConfig()
     response_steps = [step for step in trajectory.steps if step.response_text]
     if not response_steps:
         return []
@@ -88,14 +102,14 @@ def compute_step_sample_weights(trajectory: EpisodeTrajectory) -> list[tuple[Tra
     raw_weights: list[float] = []
     for step_rank, step in enumerate(response_steps):
         weight = 1.0
-        weight += 0.5 * (step_rank / max(1, len(response_steps) - 1))
+        weight += config.later_step_bonus * (step_rank / max(1, len(response_steps) - 1))
         if trajectory.success and step.done:
-            weight += 1.0
+            weight += config.terminal_success_bonus
         if step.last_action_error is not None:
-            weight *= 0.25
+            weight *= config.error_step_multiplier
         if step.parse_error is not None:
-            weight *= 0.25
-        raw_weights.append(max(weight, 0.05))
+            weight *= config.error_step_multiplier
+        raw_weights.append(max(weight, config.min_step_weight))
 
     total_weight = sum(raw_weights)
     if total_weight <= 0.0:

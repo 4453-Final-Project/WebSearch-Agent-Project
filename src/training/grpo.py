@@ -195,6 +195,7 @@ class GRPOTrainer:
                         episode_score=episode_score,
                         advantage=advantage,
                         model_system_prompt=model_system_prompt,
+                        sample_weight_config=self.reward_config.sample_weight_config,
                     )
                 )
                 all_scores.append(episode_score)

@@ -54,6 +54,7 @@ Use the existing BrowserGym/WebArena pipeline to improve a local model beyond it
 - focused quantized-training proof: `outputs/qwen_shopping_full_warmup_smoke_v2_qlora/` now completes a real `bnb_4bit` warmup smoke on the WSL GPU stack, which confirms the optional QLoRA-style path is usable for local adapter training
 - current quantized bootstrap rerun to watch: `outputs/qwen_bootstrap41_curriculum_v6_qlora/`, which reuses the same checked-in `bootstrap41` split on the current weighted stack but now runs through the `bnb_4bit` loader path so we can compare speed and signal against the earlier reruns
 - current quantized reward-tuned comparison rerun: `outputs/qwen_bootstrap41_curriculum_v7_qlora_rewardtune/`, which keeps the same checked-in `bootstrap41` split and quantized loader path but adds the stronger reward shaping from the earlier non-quantized reward-tuned bootstrap run
+- current follow-up quantized comparison path: `outputs/qwen_bootstrap41_curriculum_v8_qlora_stepweight_tune/`, which layers stronger terminal-step weighting and stronger error-step downweighting on top of the same quantized reward-tuned bootstrap recipe
 
 ## Scale-Up Target
 

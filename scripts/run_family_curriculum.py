@@ -83,6 +83,10 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--per-step-penalty", type=float, default=0.01)
     parser.add_argument("--success-unique-url-bonus", type=float, default=0.02)
     parser.add_argument("--max-unique-url-bonus-urls", type=int, default=4)
+    parser.add_argument("--step-weight-later-step-bonus", type=float, default=0.5)
+    parser.add_argument("--step-weight-terminal-success-bonus", type=float, default=1.0)
+    parser.add_argument("--step-weight-error-step-multiplier", type=float, default=0.25)
+    parser.add_argument("--step-weight-min", type=float, default=0.05)
     parser.add_argument("--headed", action="store_true")
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--min-training-task-count", type=int, default=20)
@@ -553,6 +557,10 @@ def _build_stage_args(args, split: TaskSplit, out_dir: Path, warmup_demo_dir: Pa
         per_step_penalty=args.per_step_penalty,
         success_unique_url_bonus=args.success_unique_url_bonus,
         max_unique_url_bonus_urls=args.max_unique_url_bonus_urls,
+        step_weight_later_step_bonus=args.step_weight_later_step_bonus,
+        step_weight_terminal_success_bonus=args.step_weight_terminal_success_bonus,
+        step_weight_error_step_multiplier=args.step_weight_error_step_multiplier,
+        step_weight_min=args.step_weight_min,
         headless=not args.headed,
         out_dir=str(out_dir),
     )

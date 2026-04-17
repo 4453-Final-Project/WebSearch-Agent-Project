@@ -12,7 +12,12 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from scripts.train_grpo_staged import _build_reward_config, _evaluate_adapter, _normalize_stage_task_sets
+from scripts.train_grpo_staged import (
+    _build_reward_config,
+    _build_sample_weight_config,
+    _evaluate_adapter,
+    _normalize_stage_task_sets,
+)
 
 
 class TrainGrpoStagedTests(unittest.TestCase):
@@ -127,6 +132,10 @@ class TrainGrpoStagedTests(unittest.TestCase):
             per_step_penalty=0.04,
             success_unique_url_bonus=0.08,
             max_unique_url_bonus_urls=6,
+            step_weight_later_step_bonus=0.9,
+            step_weight_terminal_success_bonus=1.7,
+            step_weight_error_step_multiplier=0.4,
+            step_weight_min=0.02,
         )
 
         reward_config = _build_reward_config(args)
@@ -135,6 +144,23 @@ class TrainGrpoStagedTests(unittest.TestCase):
         self.assertEqual(reward_config.success_bonus, 1.5)
         self.assertEqual(reward_config.same_page_repeat_action_penalty, 0.11)
         self.assertEqual(reward_config.max_unique_url_bonus_urls, 6)
+        self.assertEqual(reward_config.sample_weight_config.later_step_bonus, 0.9)
+        self.assertEqual(reward_config.sample_weight_config.terminal_success_bonus, 1.7)
+
+    def test_build_sample_weight_config_uses_cli_overrides(self) -> None:
+        args = Namespace(
+            step_weight_later_step_bonus=0.8,
+            step_weight_terminal_success_bonus=1.4,
+            step_weight_error_step_multiplier=0.3,
+            step_weight_min=0.07,
+        )
+
+        sample_weight_config = _build_sample_weight_config(args)
+
+        self.assertEqual(sample_weight_config.later_step_bonus, 0.8)
+        self.assertEqual(sample_weight_config.terminal_success_bonus, 1.4)
+        self.assertEqual(sample_weight_config.error_step_multiplier, 0.3)
+        self.assertEqual(sample_weight_config.min_step_weight, 0.07)
 
     def test_arg_parser_exposes_quantization_overrides(self) -> None:
         from scripts.train_grpo_staged import build_arg_parser
@@ -152,6 +178,14 @@ class TrainGrpoStagedTests(unittest.TestCase):
                 "--quant-type",
                 "nf4",
                 "--no-quant-use-double-quant",
+                "--step-weight-later-step-bonus",
+                "0.8",
+                "--step-weight-terminal-success-bonus",
+                "1.4",
+                "--step-weight-error-step-multiplier",
+                "0.3",
+                "--step-weight-min",
+                "0.07",
             ]
         )
 
@@ -159,6 +193,10 @@ class TrainGrpoStagedTests(unittest.TestCase):
         self.assertEqual(args.quant_compute_dtype, "float16")
         self.assertEqual(args.quant_type, "nf4")
         self.assertFalse(args.quant_use_double_quant)
+        self.assertEqual(args.step_weight_later_step_bonus, 0.8)
+        self.assertEqual(args.step_weight_terminal_success_bonus, 1.4)
+        self.assertEqual(args.step_weight_error_step_multiplier, 0.3)
+        self.assertEqual(args.step_weight_min, 0.07)
 
 
 if __name__ == "__main__":

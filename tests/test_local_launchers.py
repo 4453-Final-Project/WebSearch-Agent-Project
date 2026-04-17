@@ -62,6 +62,7 @@ class LocalLaunchersTests(unittest.TestCase):
         bootstrap41_tmux = _read_local_script("run_qwen_bootstrap41_curriculum_tmux.sh")
         bootstrap41_qlora_tmux = _read_local_script("run_qwen_bootstrap41_curriculum_qlora_tmux.sh")
         bootstrap41_qlora_rewardtune_tmux = _read_local_script("run_qwen_bootstrap41_curriculum_qlora_rewardtune_tmux.sh")
+        bootstrap41_qlora_stepweight_tune_tmux = _read_local_script("run_qwen_bootstrap41_curriculum_qlora_stepweight_tune_tmux.sh")
 
         self.assertIn('OUT_DIR="${RUN_OUT_DIR:-$WORKSPACE_ROOT/outputs/qwen_shopping_full_curriculum_v3_balanced}"', shopping_full_tmux)
         self.assertIn('TMUX_SESSION_PATH="$OUT_DIR/tmux_session.txt"', shopping_full_tmux)
@@ -91,6 +92,13 @@ class LocalLaunchersTests(unittest.TestCase):
         self.assertIn('--success-bonus 1.25', bootstrap41_qlora_rewardtune_tmux)
         self.assertIn('--same-page-repeat-action-penalty 0.06', bootstrap41_qlora_rewardtune_tmux)
         self.assertIn('run_qwen_bootstrap41_curriculum_tmux.sh', bootstrap41_qlora_rewardtune_tmux)
+
+        self.assertIn('RUN_OUT_DIR="${RUN_OUT_DIR:-$WORKSPACE_ROOT/outputs/qwen_bootstrap41_curriculum_v8_qlora_stepweight_tune}"', bootstrap41_qlora_stepweight_tune_tmux)
+        self.assertIn('TMUX_SESSION_NAME="${TMUX_SESSION_NAME:-qwen_bootstrap41_v8_qlora_stepweight_tune}"', bootstrap41_qlora_stepweight_tune_tmux)
+        self.assertIn('--quantization-mode bnb_4bit', bootstrap41_qlora_stepweight_tune_tmux)
+        self.assertIn('--step-weight-terminal-success-bonus 2.0', bootstrap41_qlora_stepweight_tune_tmux)
+        self.assertIn('--step-weight-error-step-multiplier 0.15', bootstrap41_qlora_stepweight_tune_tmux)
+        self.assertIn('run_qwen_bootstrap41_curriculum_tmux.sh', bootstrap41_qlora_stepweight_tune_tmux)
 
     def test_refresh_wrappers_exist_for_exact_full_and_bootstrap41_manifests(self) -> None:
         expected_files = (
