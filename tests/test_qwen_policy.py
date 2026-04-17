@@ -1820,6 +1820,40 @@ class QwenPolicyTests(unittest.TestCase):
         )
         self.assertIsNone(decision.parse_error)
 
+    def test_shopping_admin_dashboard_prefers_dashboard_rows_over_generic_aggregate_rows(self) -> None:
+        observation = NormalizedObservation(
+            goal="What are the top-2 best-selling product in 2022",
+            current_url="http://16.58.174.55:7780/admin/admin/dashboard/",
+            open_tabs=[
+                OpenTab(
+                    title="Dashboard / Magento Admin",
+                    url="http://16.58.174.55:7780/admin/admin/dashboard/",
+                )
+            ],
+            visible_page_summary=(
+                "Dashboard bestseller row: rank=1 | product=Quest Lumaflex™ Band | price=19.00 | quantity=6\n"
+                "Dashboard bestseller row: rank=2 | product=Sprite Stasis Ball 65 cm | price=27.00 | quantity=6\n"
+                "Dashboard bestseller row: rank=3 | product=Sprite Yoga Strap 6 foot | price=14.00 | quantity=6\n"
+                "Admin bestseller aggregate row: rank=1 | product=Sprite Stasis Ball 55 cm | quantity=7\n"
+                "Admin bestseller aggregate row: rank=2 | product=Sprite Stasis Ball 65 cm | quantity=7\n"
+                "Admin bestseller aggregate row: rank=3 | product=Sprite Stasis Ball 75 cm | quantity=6\n"
+                "Admin bestseller aggregate row: rank=4 | product=Quest Lumaflex™ Band | quantity=5"
+            ),
+            dom_or_ax_snippet='[687] role=textbox name="Search" clickable',
+            previous_actions=[],
+            previous_errors=[],
+        )
+        backend = FakeBackend(['ACTION: click("58")'])
+        policy = QwenPolicy(backend=backend, config=self.config)
+
+        decision = policy.act(observation, step_idx=0)
+
+        self.assertEqual(
+            decision.action_text,
+            'send_msg_to_user("Quest Lumaflex™ Band, Sprite Stasis Ball 65 cm")',
+        )
+        self.assertIsNone(decision.parse_error)
+
     def test_shopping_admin_dashboard_prefers_report_rows_for_month_specific_bestsellers(self) -> None:
         observation = NormalizedObservation(
             goal="What are the top-3 best-selling product in Jan 2023",

@@ -2982,17 +2982,17 @@ def _derive_admin_dashboard_bestseller_answer(goal: str, visible_page_summary: s
     lowered = " ".join((goal or "").lower().split())
     if "best-selling" not in lowered and "bestselling" not in lowered and "best selling" not in lowered:
         return ""
-    aggregate_rows = _extract_admin_bestseller_aggregate_rows(visible_page_summary)
-    if aggregate_rows:
-        return _derive_admin_bestseller_answer_from_rows(goal, aggregate_rows)
     report_rows = _extract_admin_bestseller_report_rows(visible_page_summary)
     aggregated_report_rows = _aggregate_admin_bestseller_products(report_rows)
     if aggregated_report_rows:
         return _derive_admin_bestseller_answer_from_rows(goal, aggregated_report_rows)
     rows = _extract_admin_dashboard_bestseller_rows(visible_page_summary)
-    if not rows:
-        return ""
-    return _derive_admin_bestseller_answer_from_rows(goal, rows)
+    if rows:
+        return _derive_admin_bestseller_answer_from_rows(goal, rows)
+    aggregate_rows = _extract_admin_bestseller_aggregate_rows(visible_page_summary)
+    if aggregate_rows:
+        return _derive_admin_bestseller_answer_from_rows(goal, aggregate_rows)
+    return ""
 
 
 def _derive_admin_bestseller_answer_from_rows(goal: str, rows: list[dict[str, str]]) -> str:
