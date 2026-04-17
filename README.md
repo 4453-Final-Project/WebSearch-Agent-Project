@@ -91,6 +91,7 @@ Fast local experiment target:
 - local path: `../models/LFM2.5-350M`
 
 All runnable scripts accept `--model-dir-name` or `--model-path`, so you can swap local checkpoints without editing code.
+For detached local QLoRA-style bootstrap runs, use `scripts/local/run_qwen_bootstrap41_curriculum_qlora_tmux.sh` or `.ps1`.
 
 ## Setup
 

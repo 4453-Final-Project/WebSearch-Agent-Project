@@ -60,6 +60,7 @@ class LocalLaunchersTests(unittest.TestCase):
     def test_qwen_tmux_launchers_write_tmux_session_metadata(self) -> None:
         shopping_full_tmux = _read_local_script("run_qwen_shopping_full_curriculum_v3_balanced_tmux.sh")
         bootstrap41_tmux = _read_local_script("run_qwen_bootstrap41_curriculum_tmux.sh")
+        bootstrap41_qlora_tmux = _read_local_script("run_qwen_bootstrap41_curriculum_qlora_tmux.sh")
 
         self.assertIn('OUT_DIR="${RUN_OUT_DIR:-$WORKSPACE_ROOT/outputs/qwen_shopping_full_curriculum_v3_balanced}"', shopping_full_tmux)
         self.assertIn('TMUX_SESSION_PATH="$OUT_DIR/tmux_session.txt"', shopping_full_tmux)
@@ -72,9 +73,16 @@ class LocalLaunchersTests(unittest.TestCase):
         self.assertIn('TMUX_SESSION_PATH="$OUT_DIR/tmux_session.txt"', bootstrap41_tmux)
         self.assertIn('RUN_PID_PATH="$OUT_DIR/run.pid"', bootstrap41_tmux)
         self.assertIn("bootstrap41_curriculum_manifest.json", bootstrap41_tmux)
+        self.assertIn('RUN_EXTRA_ARGS="${RUN_EXTRA_ARGS:-}"', bootstrap41_tmux)
+        self.assertIn('$RUN_EXTRA_ARGS \\\\', bootstrap41_tmux)
         self.assertIn("tmux new-session -d -s", bootstrap41_tmux)
         self.assertIn("printf '%s\\n' \"$SESSION_NAME\" >\"$TMUX_SESSION_PATH\"", bootstrap41_tmux)
         self.assertIn("tmux list-panes -t \"$SESSION_NAME\" -F '#{pane_pid}' | head -n 1 >\"$RUN_PID_PATH\"", bootstrap41_tmux)
+
+        self.assertIn('RUN_OUT_DIR="${RUN_OUT_DIR:-$WORKSPACE_ROOT/outputs/qwen_bootstrap41_curriculum_v6_qlora}"', bootstrap41_qlora_tmux)
+        self.assertIn('TMUX_SESSION_NAME="${TMUX_SESSION_NAME:-qwen_bootstrap41_v6_qlora}"', bootstrap41_qlora_tmux)
+        self.assertIn('--quantization-mode bnb_4bit', bootstrap41_qlora_tmux)
+        self.assertIn('run_qwen_bootstrap41_curriculum_tmux.sh', bootstrap41_qlora_tmux)
 
     def test_refresh_wrappers_exist_for_exact_full_and_bootstrap41_manifests(self) -> None:
         expected_files = (

@@ -8,6 +8,7 @@ WORKSPACE_ROOT="$(cd "$REPO_ROOT/.." && pwd)"
 OUT_DIR="${RUN_OUT_DIR:-$WORKSPACE_ROOT/outputs/qwen_bootstrap41_curriculum_v1}"
 SESSION_NAME="${TMUX_SESSION_NAME:-qwen_bootstrap41_v1}"
 LOCAL_MANIFEST_PATH="$REPO_ROOT/scripts/local/bootstrap41_curriculum_manifest.json"
+RUN_EXTRA_ARGS="${RUN_EXTRA_ARGS:-}"
 
 mkdir -p "$OUT_DIR"
 
@@ -55,6 +56,7 @@ exec python3 scripts/run_family_curriculum.py \\
   --eval-episodes 2 \\
   --split-manifest "$LOCAL_MANIFEST_PATH" \\
   --out-dir "$OUT_DIR" \\
+  $RUN_EXTRA_ARGS \\
   >"$LOG_PATH" 2>"$ERR_PATH"
 EOF
 
