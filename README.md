@@ -92,6 +92,7 @@ Fast local experiment target:
 
 All runnable scripts accept `--model-dir-name` or `--model-path`, so you can swap local checkpoints without editing code.
 For detached local QLoRA-style bootstrap runs, use `scripts/local/run_qwen_bootstrap41_curriculum_qlora_tmux.sh` or `.ps1`.
+For the stronger quantized reward-shaped variant, use `scripts/local/run_qwen_bootstrap41_curriculum_qlora_rewardtune_tmux.sh` or `.ps1`.
 
 ## Setup
 
