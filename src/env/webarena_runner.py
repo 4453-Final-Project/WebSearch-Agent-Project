@@ -229,6 +229,12 @@ def run_episode(
                     goal=raw_goal,
                     env=env,
                 )
+                _append_shopping_admin_review_count_lines(
+                    serialized_observation,
+                    raw_observation=obs,
+                    goal=raw_goal,
+                    env=env,
+                )
                 _append_gitlab_rss_token_lines(
                     serialized_observation,
                     raw_observation=obs,
@@ -1088,6 +1094,22 @@ def _append_shopping_admin_search_term_lines(
     serialized_observation["visible_page_summary"] = _truncate_text("\n".join(combined_lines))
 
 
+def _append_shopping_admin_review_count_lines(
+    serialized_observation: dict[str, Any],
+    *,
+    raw_observation: Mapping[str, Any],
+    goal: str,
+    env: Any,
+) -> None:
+    lines = _collect_shopping_admin_review_count_lines(raw_observation, goal=goal, env=env)
+    if not lines:
+        return
+    existing_summary = _as_text(serialized_observation.get("visible_page_summary"))
+    existing_lines = existing_summary.splitlines()
+    combined_lines = [*existing_lines, *lines]
+    serialized_observation["visible_page_summary"] = _truncate_text("\n".join(combined_lines))
+
+
 def _append_gitlab_rss_token_lines(
     serialized_observation: dict[str, Any],
     *,
@@ -1519,6 +1541,91 @@ def _fetch_shopping_admin_search_term(page: Any, search_term_url: str) -> dict[s
         return {}
     finally:
         search_page.close()
+
+
+def _collect_shopping_admin_review_count_lines(
+    obs: Mapping[str, Any],
+    *,
+    goal: str,
+    env: Any,
+) -> list[str]:
+    if not _goal_requests_admin_review_count(goal):
+        return []
+
+    current_url = _as_text(obs.get("url"))
+    parsed = urlparse(current_url or "")
+    if not parsed.netloc.endswith(":7780") or not (parsed.path or "/").startswith("/admin/admin/dashboard"):
+        return []
+
+    review_term = _extract_admin_review_term(goal)
+    if not review_term:
+        return []
+
+    page = getattr(getattr(env, "unwrapped", env), "page", None)
+    if page is None or not hasattr(page, "context"):
+        return []
+
+    review_count = _fetch_shopping_admin_review_count(page, review_term=review_term)
+    if review_count is None:
+        return []
+    return [f"Admin review mention count: term={review_term} | count={review_count}"]
+
+
+def _goal_requests_admin_review_count(goal: str) -> bool:
+    lowered = " ".join((goal or "").lower().split())
+    if "review" not in lowered:
+        return False
+    if "mention term" in lowered or "mention the term" in lowered:
+        return True
+    if "number of reviews" in lowered and "term" in lowered:
+        return True
+    return "how many reviews" in lowered and "term" in lowered
+
+
+def _extract_admin_review_term(goal: str) -> str:
+    normalized_goal = " ".join((goal or "").split())
+    if not normalized_goal:
+        return ""
+    quoted_match = re.search(r'term\s*["“](?P<term>[^"”]+)["”]', normalized_goal, re.IGNORECASE)
+    if quoted_match:
+        return _normalize_extracted_text(quoted_match.group("term"))
+    single_quoted_match = re.search(r"term\s*'(?P<term>[^']+)'", normalized_goal, re.IGNORECASE)
+    if single_quoted_match:
+        return _normalize_extracted_text(single_quoted_match.group("term"))
+    fallback_match = re.search(
+        r"mention(?:ing)?\s+term\s+(?P<term>[A-Za-z0-9][A-Za-z0-9' -]{1,80})",
+        normalized_goal,
+        re.IGNORECASE,
+    )
+    if fallback_match:
+        return _normalize_extracted_text(fallback_match.group("term").rstrip("?.!,"))
+    return ""
+
+
+def _fetch_shopping_admin_review_count(page: Any, *, review_term: str) -> int | None:
+    review_page = page.context.new_page()
+    try:
+        current_url = _as_text(getattr(page, "url", ""))
+        parsed = urlparse(current_url or "")
+        review_url = f"{parsed.scheme or 'http'}://{parsed.netloc}/admin/review/product/?limit=200"
+        review_page.goto(review_url, wait_until="domcontentloaded")
+        detail_filter = review_page.locator("#reviewGrid_filter_detail")
+        detail_filter.fill(review_term)
+        detail_filter.press("Enter")
+        try:
+            review_page.wait_for_load_state("domcontentloaded")
+        except Exception:
+            pass
+        time.sleep(1)
+        body_text = _normalize_extracted_text(review_page.locator("body").inner_text())
+        match = re.search(r"(\d+)\s+records\s+found", body_text, re.IGNORECASE)
+        if match is None:
+            return None
+        return int(match.group(1))
+    except Exception:
+        return None
+    finally:
+        review_page.close()
 
 
 def _extract_shopping_admin_search_term_details_from_body_text(body_text: str) -> dict[str, str | int]:

@@ -1601,6 +1601,82 @@ class WebArenaRunnerTests(unittest.TestCase):
         self.assertEqual(len(env.page.context.pages), 2)
         self.assertTrue(all(page.closed for page in env.page.context.pages))
 
+    def test_admin_review_count_rows_are_appended_for_review_term_goals(self) -> None:
+        class FakeBody:
+            def __init__(self, page):
+                self._page = page
+
+            def inner_text(self):
+                count = self._page._counts.get(self._page._term, 0)
+                return f"{count} records found"
+
+        class FakeFilter:
+            def __init__(self, page):
+                self._page = page
+
+            def fill(self, value):
+                self._page._term = value
+
+            def press(self, key):
+                return None
+
+        class FakeReviewPage:
+            def __init__(self, counts):
+                self.closed = False
+                self._counts = counts
+                self._term = ""
+
+            def goto(self, url, wait_until=None):
+                return None
+
+            def wait_for_load_state(self, state):
+                return None
+
+            def locator(self, selector):
+                if selector == "#reviewGrid_filter_detail":
+                    return FakeFilter(self)
+                if selector == "body":
+                    return FakeBody(self)
+                raise AssertionError(f"Unexpected selector: {selector}")
+
+            def close(self):
+                self.closed = True
+
+        class FakeContext:
+            def __init__(self):
+                self.pages = []
+
+            def new_page(self):
+                page = FakeReviewPage({"disappointed": 6})
+                self.pages.append(page)
+                return page
+
+        class FakePage:
+            def __init__(self):
+                self.url = "http://3.14.148.71:7780/admin/admin/dashboard/"
+                self.context = FakeContext()
+
+        class FakeEnv:
+            def __init__(self):
+                self.unwrapped = self
+                self.page = FakePage()
+
+        serialized_observation = {"visible_page_summary": "Magento admin dashboard"}
+        obs = {"url": "http://3.14.148.71:7780/admin/admin/dashboard/"}
+        env = FakeEnv()
+
+        webarena_runner._append_shopping_admin_review_count_lines(
+            serialized_observation,
+            raw_observation=obs,
+            goal='Tell me the the number of reviews that our store received by far that mention term "disappointed"',
+            env=env,
+        )
+
+        summary = serialized_observation["visible_page_summary"]
+        self.assertIn("Admin review mention count: term=disappointed | count=6", summary)
+        self.assertEqual(len(env.page.context.pages), 1)
+        self.assertTrue(env.page.context.pages[0].closed)
+
     def test_admin_order_rows_are_added_to_visible_summary_for_relevant_goals(self) -> None:
         obs = {
             "goal": "Get the total payment amount of the last 2 completed orders",

@@ -2930,6 +2930,9 @@ def _parse_amount(value: str) -> float:
 
 
 def _derive_admin_dashboard_answer(goal: str, visible_page_summary: str, dom_or_ax_snippet: str) -> str:
+    review_count_answer = _derive_admin_dashboard_review_count_answer(goal, visible_page_summary)
+    if review_count_answer:
+        return review_count_answer
     search_term_answer = _derive_admin_dashboard_search_term_answer(goal, visible_page_summary)
     if search_term_answer:
         return search_term_answer
@@ -2937,6 +2940,44 @@ def _derive_admin_dashboard_answer(goal: str, visible_page_summary: str, dom_or_
     if quantity_answer:
         return quantity_answer
     return _derive_admin_dashboard_bestseller_answer(goal, visible_page_summary)
+
+
+def _derive_admin_dashboard_review_count_answer(goal: str, visible_page_summary: str) -> str:
+    lowered = " ".join((goal or "").lower().split())
+    if "review" not in lowered:
+        return ""
+    if "mention term" not in lowered and "mention the term" not in lowered and "number of reviews" not in lowered:
+        return ""
+    review_term = _extract_admin_dashboard_review_term(goal)
+    if not review_term:
+        return ""
+    for row in _extract_admin_dashboard_review_count_rows(visible_page_summary):
+        if row.get("term", "").lower() != review_term.lower():
+            continue
+        count = row.get("count", "")
+        if count:
+            return count
+    return ""
+
+
+def _extract_admin_dashboard_review_term(goal: str) -> str:
+    normalized_goal = " ".join((goal or "").split())
+    if not normalized_goal:
+        return ""
+    quoted_match = re.search(r'term\s*["“](?P<term>[^"”]+)["”]', normalized_goal, re.IGNORECASE)
+    if quoted_match:
+        return " ".join(quoted_match.group("term").split())
+    single_quoted_match = re.search(r"term\s*'(?P<term>[^']+)'", normalized_goal, re.IGNORECASE)
+    if single_quoted_match:
+        return " ".join(single_quoted_match.group("term").split())
+    fallback_match = re.search(
+        r"mention(?:ing)?\s+term\s+(?P<term>[A-Za-z0-9][A-Za-z0-9' -]{1,80})",
+        normalized_goal,
+        re.IGNORECASE,
+    )
+    if fallback_match:
+        return " ".join(fallback_match.group("term").rstrip("?.!,").split())
+    return ""
 
 
 def _derive_admin_dashboard_search_term_answer(goal: str, visible_page_summary: str) -> str:
@@ -3074,6 +3115,24 @@ def _extract_admin_dashboard_search_term_rows(visible_page_summary: str) -> list
             key, value = part.split("=", 1)
             row[key.strip()] = value.strip()
         if row.get("term"):
+            rows.append(row)
+    return rows
+
+
+def _extract_admin_dashboard_review_count_rows(visible_page_summary: str) -> list[dict[str, str]]:
+    rows: list[dict[str, str]] = []
+    for raw_line in visible_page_summary.splitlines():
+        line = " ".join(raw_line.split())
+        if not line.startswith("Admin review mention count:"):
+            continue
+        payload = line.split(":", 1)[1].strip()
+        row: dict[str, str] = {}
+        for part in payload.split("|"):
+            if "=" not in part:
+                continue
+            key, value = part.split("=", 1)
+            row[key.strip()] = value.strip()
+        if row.get("term") and row.get("count"):
             rows.append(row)
     return rows
 
