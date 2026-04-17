@@ -68,6 +68,17 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--beta", type=float, default=0.01)
     parser.add_argument("--clip-range", type=float, default=0.2)
     parser.add_argument("--max-grad-norm", type=float, default=1.0)
+    parser.add_argument("--reward-scale", type=float, default=1.0)
+    parser.add_argument("--success-bonus", type=float, default=1.0)
+    parser.add_argument("--success-step-bonus", type=float, default=0.05)
+    parser.add_argument("--invalid-action-penalty", type=float, default=0.15)
+    parser.add_argument("--parse-failure-penalty", type=float, default=0.10)
+    parser.add_argument("--truncation-penalty", type=float, default=0.05)
+    parser.add_argument("--repeat-action-penalty", type=float, default=0.02)
+    parser.add_argument("--same-page-repeat-action-penalty", type=float, default=0.03)
+    parser.add_argument("--per-step-penalty", type=float, default=0.01)
+    parser.add_argument("--success-unique-url-bonus", type=float, default=0.02)
+    parser.add_argument("--max-unique-url-bonus-urls", type=int, default=4)
     parser.add_argument("--headed", action="store_true")
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--min-training-task-count", type=int, default=20)
@@ -519,6 +530,17 @@ def _build_stage_args(args, split: TaskSplit, out_dir: Path, warmup_demo_dir: Pa
         beta=args.beta,
         clip_range=args.clip_range,
         max_grad_norm=args.max_grad_norm,
+        reward_scale=args.reward_scale,
+        success_bonus=args.success_bonus,
+        success_step_bonus=args.success_step_bonus,
+        invalid_action_penalty=args.invalid_action_penalty,
+        parse_failure_penalty=args.parse_failure_penalty,
+        truncation_penalty=args.truncation_penalty,
+        repeat_action_penalty=args.repeat_action_penalty,
+        same_page_repeat_action_penalty=args.same_page_repeat_action_penalty,
+        per_step_penalty=args.per_step_penalty,
+        success_unique_url_bonus=args.success_unique_url_bonus,
+        max_unique_url_bonus_urls=args.max_unique_url_bonus_urls,
         headless=not args.headed,
         out_dir=str(out_dir),
     )

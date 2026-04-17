@@ -12,7 +12,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from scripts.train_grpo_staged import _evaluate_adapter, _normalize_stage_task_sets
+from scripts.train_grpo_staged import _build_reward_config, _evaluate_adapter, _normalize_stage_task_sets
 
 
 class TrainGrpoStagedTests(unittest.TestCase):
@@ -113,6 +113,28 @@ class TrainGrpoStagedTests(unittest.TestCase):
         build_policy.assert_called_once_with(args, model_path="adapter", temperature=0.0)
         evaluate_single_task_mock.assert_called_once()
         self.assertEqual(evaluate_single_task_mock.call_args.kwargs["task_id"], 102)
+
+    def test_build_reward_config_uses_cli_overrides(self) -> None:
+        args = Namespace(
+            reward_scale=2.0,
+            success_bonus=1.5,
+            success_step_bonus=0.2,
+            invalid_action_penalty=0.3,
+            parse_failure_penalty=0.25,
+            truncation_penalty=0.15,
+            repeat_action_penalty=0.07,
+            same_page_repeat_action_penalty=0.11,
+            per_step_penalty=0.04,
+            success_unique_url_bonus=0.08,
+            max_unique_url_bonus_urls=6,
+        )
+
+        reward_config = _build_reward_config(args)
+
+        self.assertEqual(reward_config.reward_scale, 2.0)
+        self.assertEqual(reward_config.success_bonus, 1.5)
+        self.assertEqual(reward_config.same_page_repeat_action_penalty, 0.11)
+        self.assertEqual(reward_config.max_unique_url_bonus_urls, 6)
 
 
 if __name__ == "__main__":
