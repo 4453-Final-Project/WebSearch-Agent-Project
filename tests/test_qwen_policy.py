@@ -1888,6 +1888,36 @@ class QwenPolicyTests(unittest.TestCase):
         )
         self.assertIsNone(decision.parse_error)
 
+    def test_shopping_admin_dashboard_answers_top_search_terms_from_appended_rows(self) -> None:
+        observation = NormalizedObservation(
+            goal="List the top 1 search terms in my store",
+            current_url="http://3.14.148.71:7780/admin/admin/dashboard/",
+            open_tabs=[
+                OpenTab(
+                    title="Dashboard / Magento Admin",
+                    url="http://3.14.148.71:7780/admin/admin/dashboard/",
+                )
+            ],
+            visible_page_summary=(
+                "http://3.14.148.71:7780/admin/search/term/edit/id/25/ (clickable)\n"
+                "Dashboard search term row: rank=1 | term=overnight duffle\n"
+                "Dashboard search term row: rank=2 | term=sprite yoga strap"
+            ),
+            dom_or_ax_snippet='[687] role=textbox name="Search" clickable',
+            previous_actions=[],
+            previous_errors=[],
+        )
+        backend = FakeBackend(['ACTION: click("687")'])
+        policy = QwenPolicy(backend=backend, config=self.config)
+
+        decision = policy.act(observation, step_idx=0)
+
+        self.assertEqual(
+            decision.action_text,
+            'send_msg_to_user("overnight duffle")',
+        )
+        self.assertIsNone(decision.parse_error)
+
     def test_shopping_admin_dashboard_prefers_report_rows_for_month_specific_product_type(self) -> None:
         observation = NormalizedObservation(
             goal="What is the top-1 best-selling product type in Jan 2023",

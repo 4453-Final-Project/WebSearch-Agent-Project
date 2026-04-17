@@ -2930,10 +2930,26 @@ def _parse_amount(value: str) -> float:
 
 
 def _derive_admin_dashboard_answer(goal: str, visible_page_summary: str, dom_or_ax_snippet: str) -> str:
+    search_term_answer = _derive_admin_dashboard_search_term_answer(goal, visible_page_summary)
+    if search_term_answer:
+        return search_term_answer
     quantity_answer = _derive_admin_dashboard_quantity_answer(goal, visible_page_summary, dom_or_ax_snippet)
     if quantity_answer:
         return quantity_answer
     return _derive_admin_dashboard_bestseller_answer(goal, visible_page_summary)
+
+
+def _derive_admin_dashboard_search_term_answer(goal: str, visible_page_summary: str) -> str:
+    lowered = " ".join((goal or "").lower().split())
+    if "search term" not in lowered:
+        return ""
+    rows = _extract_admin_dashboard_search_term_rows(visible_page_summary)
+    if not rows:
+        return ""
+    count = _derive_top_count(goal) or 1
+    if len(rows) < count:
+        return ""
+    return ", ".join(row.get("term", "") for row in rows[:count] if row.get("term"))
 
 
 def _derive_admin_dashboard_quantity_answer(goal: str, visible_page_summary: str, dom_or_ax_snippet: str) -> str:
@@ -3040,6 +3056,24 @@ def _extract_admin_dashboard_bestseller_rows(visible_page_summary: str) -> list[
             key, value = part.split("=", 1)
             row[key.strip()] = value.strip()
         if row.get("product") and row.get("quantity"):
+            rows.append(row)
+    return rows
+
+
+def _extract_admin_dashboard_search_term_rows(visible_page_summary: str) -> list[dict[str, str]]:
+    rows: list[dict[str, str]] = []
+    for raw_line in visible_page_summary.splitlines():
+        line = " ".join(raw_line.split())
+        if not line.startswith("Dashboard search term row:"):
+            continue
+        payload = line.split(":", 1)[1].strip()
+        row: dict[str, str] = {}
+        for part in payload.split("|"):
+            if "=" not in part:
+                continue
+            key, value = part.split("=", 1)
+            row[key.strip()] = value.strip()
+        if row.get("term"):
             rows.append(row)
     return rows
 

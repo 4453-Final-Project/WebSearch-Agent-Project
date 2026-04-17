@@ -223,6 +223,12 @@ def run_episode(
                     goal=raw_goal,
                     env=env,
                 )
+                _append_shopping_admin_search_term_lines(
+                    serialized_observation,
+                    raw_observation=obs,
+                    goal=raw_goal,
+                    env=env,
+                )
                 _append_gitlab_rss_token_lines(
                     serialized_observation,
                     raw_observation=obs,
@@ -1061,6 +1067,27 @@ def _append_shopping_admin_bestseller_report_lines(
     serialized_observation["visible_page_summary"] = _truncate_text("\n".join(combined_lines))
 
 
+def _append_shopping_admin_search_term_lines(
+    serialized_observation: dict[str, Any],
+    *,
+    raw_observation: Mapping[str, Any],
+    goal: str,
+    env: Any,
+) -> None:
+    lines = _collect_shopping_admin_search_term_lines(
+        serialized_observation,
+        raw_observation=raw_observation,
+        goal=goal,
+        env=env,
+    )
+    if not lines:
+        return
+    existing_summary = _as_text(serialized_observation.get("visible_page_summary"))
+    existing_lines = existing_summary.splitlines()
+    combined_lines = [*existing_lines, *lines]
+    serialized_observation["visible_page_summary"] = _truncate_text("\n".join(combined_lines))
+
+
 def _append_gitlab_rss_token_lines(
     serialized_observation: dict[str, Any],
     *,
@@ -1377,6 +1404,141 @@ def _collect_shopping_admin_bestseller_report_lines(
         f'quantity={row.get("quantity", "")}'
         for index, row in enumerate(aggregated_rows[:12], start=1)
     ]
+
+
+def _collect_shopping_admin_search_term_lines(
+    serialized_observation: Mapping[str, Any],
+    *,
+    raw_observation: Mapping[str, Any],
+    goal: str,
+    env: Any,
+) -> list[str]:
+    lowered_goal = " ".join((goal or "").lower().split())
+    if "search term" not in lowered_goal:
+        return []
+
+    current_url = _as_text(raw_observation.get("url"))
+    parsed = urlparse(current_url or "")
+    if not parsed.netloc.endswith(":7780") or not (parsed.path or "/").startswith("/admin/admin/dashboard"):
+        return []
+
+    page = getattr(getattr(env, "unwrapped", env), "page", None)
+    if page is None or not hasattr(page, "context"):
+        return []
+
+    existing_summary = _as_text(serialized_observation.get("visible_page_summary"))
+    search_term_urls = _extract_shopping_admin_search_term_urls(existing_summary)
+    if not search_term_urls:
+        return []
+
+    rows: list[dict[str, str | int]] = []
+    for search_term_url in search_term_urls[:5]:
+        row = _fetch_shopping_admin_search_term(page, search_term_url)
+        if not row or not row.get("term"):
+            continue
+        rows.append(row)
+    if not rows:
+        return []
+    ranked_rows = sorted(
+        rows,
+        key=lambda row: (-int(row.get("uses", -1)), int(row.get("_index", 0))),
+    )
+    lines: list[str] = []
+    for index, row in enumerate(ranked_rows, start=1):
+        lines.append(
+            "Dashboard search term row: "
+            f'rank={index} | term={row.get("term", "")} | uses={row.get("uses", "")}'
+        )
+    return lines
+
+
+def _extract_shopping_admin_search_term_urls(visible_page_summary: str) -> list[str]:
+    urls: list[str] = []
+    seen: set[str] = set()
+    for match in re.finditer(r"https?://[^\s]+/admin/search/term/edit/id/\d+/", visible_page_summary or ""):
+        url = match.group(0).strip()
+        if url in seen:
+            continue
+        seen.add(url)
+        urls.append(url)
+    return urls
+
+
+def _fetch_shopping_admin_search_term(page: Any, search_term_url: str) -> dict[str, str | int]:
+    search_page = page.context.new_page()
+    try:
+        search_page.goto(search_term_url, wait_until="domcontentloaded")
+        for selector in (
+            '[name="search_query"]',
+            '[name="query_text"]',
+            '[name="search_term"]',
+            '[name="name"]',
+            '#search_query',
+        ):
+            try:
+                value = _normalize_extracted_text(search_page.locator(selector).input_value())
+            except Exception:
+                continue
+            if value and value.lower() not in {"search query", "search term"}:
+                body_text = ""
+                try:
+                    body_text = _normalize_extracted_text(search_page.locator("body").inner_text())
+                except Exception:
+                    pass
+                details = _extract_shopping_admin_search_term_details_from_body_text(body_text)
+                return {
+                    "term": value,
+                    "uses": details.get("uses", -1),
+                    "_index": len(page.context.pages),
+                }
+        try:
+            body_text = _normalize_extracted_text(search_page.locator("body").inner_text())
+        except Exception:
+            return {}
+        details = _extract_shopping_admin_search_term_details_from_body_text(body_text)
+        if not details.get("term"):
+            return {}
+        details["_index"] = len(page.context.pages)
+        return details
+    except Exception:
+        return {}
+    finally:
+        search_page.close()
+
+
+def _extract_shopping_admin_search_term_details_from_body_text(body_text: str) -> dict[str, str | int]:
+    lines = [
+        _normalize_extracted_text(raw_line)
+        for raw_line in _as_text(body_text).splitlines()
+        if _normalize_extracted_text(raw_line)
+    ]
+    term = ""
+    uses = -1
+    for index, line in enumerate(lines):
+        lowered = line.lower()
+        if lowered in {"search query", "search term"} and not term:
+            for candidate in lines[index + 1 :]:
+                candidate_lower = candidate.lower()
+                if candidate_lower in {
+                    "number of results",
+                    "number of uses",
+                    "redirect url",
+                    "display in suggested terms",
+                    "save search",
+                    "reset",
+                }:
+                    break
+                if candidate and candidate_lower not in {"search query", "search term"}:
+                    term = candidate
+                    break
+        if lowered == "number of uses":
+            for candidate in lines[index + 1 :]:
+                if candidate.isdigit():
+                    uses = int(candidate)
+                    break
+                if candidate.lower() in {"redirect url", "display in suggested terms", "save search", "reset"}:
+                    break
+    return {"term": term, "uses": uses}
 
 
 def _extract_shopping_admin_bestseller_report_rows(raw_rows: list[str]) -> list[dict[str, str]]:

@@ -1519,6 +1519,80 @@ class WebArenaRunnerTests(unittest.TestCase):
         self.assertEqual(len(env.page.context.pages), 1)
         self.assertTrue(env.page.context.pages[0].closed)
 
+    def test_admin_search_term_rows_are_appended_for_search_term_goals(self) -> None:
+        class FakeInput:
+            def __init__(self, value):
+                self._value = value
+
+            def input_value(self):
+                return self._value
+
+        class FakeBody:
+            def inner_text(self):
+                return ""
+
+        class FakeSearchPage:
+            def __init__(self, value):
+                self.closed = False
+                self._value = value
+
+            def goto(self, url, wait_until=None):
+                return None
+
+            def locator(self, selector):
+                if selector in {'[name="search_query"]', '[name="query_text"]', '[name="search_term"]', '[name="name"]', '#search_query'}:
+                    if self._value is None:
+                        raise RuntimeError("missing input")
+                    return FakeInput(self._value)
+                if selector == "body":
+                    return FakeBody()
+                raise AssertionError(f"Unexpected selector: {selector}")
+
+            def close(self):
+                self.closed = True
+
+        class FakeContext:
+            def __init__(self):
+                self.pages = []
+                self._values = iter(["overnight duffle", "sprite yoga strap"])
+
+            def new_page(self):
+                page = FakeSearchPage(next(self._values))
+                self.pages.append(page)
+                return page
+
+        class FakePage:
+            def __init__(self):
+                self.context = FakeContext()
+
+        class FakeEnv:
+            def __init__(self):
+                self.unwrapped = self
+                self.page = FakePage()
+
+        serialized_observation = {
+            "visible_page_summary": (
+                "http://3.14.148.71:7780/admin/search/term/edit/id/25/ (clickable)\n"
+                "http://3.14.148.71:7780/admin/search/term/edit/id/19/ (clickable)\n"
+                "Search Term"
+            )
+        }
+        obs = {"url": "http://3.14.148.71:7780/admin/admin/dashboard/"}
+        env = FakeEnv()
+
+        webarena_runner._append_shopping_admin_search_term_lines(
+            serialized_observation,
+            raw_observation=obs,
+            goal="List the top 1 search terms in my store",
+            env=env,
+        )
+
+        summary = serialized_observation["visible_page_summary"]
+        self.assertIn("Dashboard search term row: rank=1 | term=overnight duffle | uses=-1", summary)
+        self.assertIn("Dashboard search term row: rank=2 | term=sprite yoga strap | uses=-1", summary)
+        self.assertEqual(len(env.page.context.pages), 2)
+        self.assertTrue(all(page.closed for page in env.page.context.pages))
+
     def test_admin_order_rows_are_added_to_visible_summary_for_relevant_goals(self) -> None:
         obs = {
             "goal": "Get the total payment amount of the last 2 completed orders",
