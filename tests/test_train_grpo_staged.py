@@ -136,6 +136,30 @@ class TrainGrpoStagedTests(unittest.TestCase):
         self.assertEqual(reward_config.same_page_repeat_action_penalty, 0.11)
         self.assertEqual(reward_config.max_unique_url_bonus_urls, 6)
 
+    def test_arg_parser_exposes_quantization_overrides(self) -> None:
+        from scripts.train_grpo_staged import build_arg_parser
+
+        args = build_arg_parser().parse_args(
+            [
+                "--stage",
+                "warmup",
+                "--task-id",
+                "325",
+                "--quantization-mode",
+                "bnb_4bit",
+                "--quant-compute-dtype",
+                "float16",
+                "--quant-type",
+                "nf4",
+                "--no-quant-use-double-quant",
+            ]
+        )
+
+        self.assertEqual(args.quantization_mode, "bnb_4bit")
+        self.assertEqual(args.quant_compute_dtype, "float16")
+        self.assertEqual(args.quant_type, "nf4")
+        self.assertFalse(args.quant_use_double_quant)
+
 
 if __name__ == "__main__":
     unittest.main()

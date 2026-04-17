@@ -12,6 +12,7 @@ from src.agent.parsing import make_decision, make_fallback_decision
 from src.agent.prompting import build_full_prompt, build_retry_prompt
 from src.agent.qwen_policy import QwenPolicy
 from src.agent.types import AgentDecision, NormalizedObservation, PolicyConfig
+from src.utils.quantization import build_bitsandbytes_quantization_config, resolve_quantized_device_map
 from src.utils.local_inference import (
     build_generation_kwargs,
     build_model_inputs,
@@ -36,6 +37,10 @@ class PolicyAdapterConfig:
     system_prompt: str | None = None
     use_chat_template: bool = True
     device: str | None = None
+    quantization_mode: str | None = None
+    quant_compute_dtype: str = "bfloat16"
+    quant_type: str = "nf4"
+    quant_use_double_quant: bool = True
     learning_rate: float = 1e-4
     weight_decay: float = 0.0
     score_batch_size: int = 1
@@ -58,6 +63,10 @@ class TrainableQwenPolicy:
             system_prompt=base_config.system_prompt,
             use_chat_template=base_config.use_chat_template,
             device=base_config.device,
+            quantization_mode=base_config.quantization_mode,
+            quant_compute_dtype=base_config.quant_compute_dtype,
+            quant_type=base_config.quant_type,
+            quant_use_double_quant=base_config.quant_use_double_quant,
         )
         self.name = self.config.policy_name
 
@@ -203,7 +212,8 @@ class TrainableQwenPolicy:
         else:
             model = transformers.AutoModelForCausalLM.from_pretrained(self.model_path, **model_kwargs)
             model = prepare_lora_model(model, self.config.lora)
-        model = model.to(load_device)
+        if not self._uses_quantized_loading():
+            model = model.to(load_device)
         model.config.use_cache = False
         if hasattr(model, "gradient_checkpointing_enable"):
             model.gradient_checkpointing_enable()
@@ -254,16 +264,37 @@ class TrainableQwenPolicy:
         configured_device = self.config.device
         if configured_device:
             return torch.device(configured_device)
-        if torch.cuda.is_available():
+        cuda_module = getattr(torch, "cuda", None)
+        if cuda_module is not None and callable(getattr(cuda_module, "is_available", None)) and cuda_module.is_available():
             return torch.device("cuda")
         return torch.device("cpu")
 
     def _build_trainable_model_kwargs(self) -> dict[str, Any]:
-        return {
+        kwargs: dict[str, Any] = {
             "local_files_only": True,
             "torch_dtype": "auto",
             "low_cpu_mem_usage": False,
         }
+        if not self._uses_quantized_loading():
+            return kwargs
+
+        import transformers
+
+        quantization_config = build_bitsandbytes_quantization_config(
+            torch_module=torch,
+            transformers_module=transformers,
+            quantization_mode=self.config.quantization_mode,
+            quant_compute_dtype=self.config.quant_compute_dtype,
+            quant_type=self.config.quant_type,
+            quant_use_double_quant=self.config.quant_use_double_quant,
+        )
+        kwargs["quantization_config"] = quantization_config
+        kwargs["torch_dtype"] = getattr(torch, self.config.quant_compute_dtype, torch.bfloat16)
+        kwargs["device_map"] = resolve_quantized_device_map(self._resolve_load_device())
+        return kwargs
+
+    def _uses_quantized_loading(self) -> bool:
+        return bool((self.config.quantization_mode or "").strip())
 
     def _split_prompt(self, prompt: str) -> tuple[str, str]:
         separator = "\n\n"

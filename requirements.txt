@@ -1,4 +1,5 @@
 accelerate
+bitsandbytes
 browsergym
 browsergym-webarena
 datasets

@@ -50,3 +50,7 @@ class PolicyConfig:
     system_prompt: str | None = None
     use_chat_template: bool = True
     device: str | None = None
+    quantization_mode: str | None = None
+    quant_compute_dtype: str = "bfloat16"
+    quant_type: str = "nf4"
+    quant_use_double_quant: bool = True

@@ -58,6 +58,10 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--weight-decay", type=float, default=0.0)
     parser.add_argument("--score-batch-size", type=int, default=1)
     parser.add_argument("--max-supervised-tokens", type=int, default=512)
+    parser.add_argument("--quantization-mode", default=None)
+    parser.add_argument("--quant-compute-dtype", default="bfloat16")
+    parser.add_argument("--quant-type", default="nf4")
+    parser.add_argument("--quant-use-double-quant", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument("--lora-r", type=int, default=8)
     parser.add_argument("--lora-alpha", type=int, default=16)
     parser.add_argument("--lora-dropout", type=float, default=0.05)
@@ -445,6 +449,10 @@ def _run_baseline_eval(args, split: TaskSplit, out_dir: Path) -> dict[str, objec
         model_path=args.model_path,
         max_new_tokens=args.max_new_tokens,
         temperature=args.eval_temperature,
+        quantization_mode=args.quantization_mode,
+        quant_compute_dtype=args.quant_compute_dtype,
+        quant_type=args.quant_type,
+        quant_use_double_quant=args.quant_use_double_quant,
     )
     for task_id in split.eval_task_ids:
         if str(task_id) in results:
@@ -520,6 +528,10 @@ def _build_stage_args(args, split: TaskSplit, out_dir: Path, warmup_demo_dir: Pa
         weight_decay=args.weight_decay,
         score_batch_size=args.score_batch_size,
         max_supervised_tokens=args.max_supervised_tokens,
+        quantization_mode=args.quantization_mode,
+        quant_compute_dtype=args.quant_compute_dtype,
+        quant_type=args.quant_type,
+        quant_use_double_quant=args.quant_use_double_quant,
         lora_r=args.lora_r,
         lora_alpha=args.lora_alpha,
         lora_dropout=args.lora_dropout,

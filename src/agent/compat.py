@@ -75,12 +75,40 @@ def load_policy_config() -> PolicyConfig:
         attr_names=("TASK3_DEVICE", "DEVICE"),
         default=None,
     )
+    quantization_mode = _get_optional_str_config_value(
+        config_module,
+        env_name="TASK3_QUANTIZATION_MODE",
+        attr_names=("TASK3_QUANTIZATION_MODE", "QUANTIZATION_MODE"),
+        default=None,
+    )
+    quant_compute_dtype = _get_config_value(
+        config_module,
+        env_name="TASK3_QUANT_COMPUTE_DTYPE",
+        attr_names=("TASK3_QUANT_COMPUTE_DTYPE", "QUANT_COMPUTE_DTYPE"),
+        default="bfloat16",
+    )
+    quant_type = _get_config_value(
+        config_module,
+        env_name="TASK3_QUANT_TYPE",
+        attr_names=("TASK3_QUANT_TYPE", "QUANT_TYPE"),
+        default="nf4",
+    )
+    quant_use_double_quant = _get_bool_config_value(
+        config_module,
+        env_name="TASK3_QUANT_USE_DOUBLE_QUANT",
+        attr_names=("TASK3_QUANT_USE_DOUBLE_QUANT", "QUANT_USE_DOUBLE_QUANT"),
+        default=True,
+    )
 
     return PolicyConfig(
         model_path=model_path,
         max_new_tokens=max_new_tokens,
         temperature=temperature,
         device=device,
+        quantization_mode=quantization_mode,
+        quant_compute_dtype=quant_compute_dtype,
+        quant_type=quant_type,
+        quant_use_double_quant=quant_use_double_quant,
     )
 
 
@@ -244,6 +272,27 @@ def _get_optional_str_config_value(
     if value is None or value == "":
         return default
     return str(value)
+
+
+def _get_bool_config_value(
+    config_module: Any,
+    env_name: str,
+    attr_names: tuple[str, ...],
+    default: bool,
+) -> bool:
+    value = _get_config_attr(config_module, attr_names)
+    env_value = os.getenv(env_name)
+    if env_value not in (None, ""):
+        value = env_value
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in {"1", "true", "yes", "y", "on"}:
+            return True
+        if normalized in {"0", "false", "no", "n", "off"}:
+            return False
+    return default
 
 
 def _get_model_path_config_value(config_module: Any) -> str:

@@ -51,6 +51,8 @@ Use the existing BrowserGym/WebArena pipeline to improve a local model beyond it
 - completed bootstrap rerun: `outputs/qwen_bootstrap41_curriculum_v3_mapfix/` finished with baseline `12/41` (`0.2926829268292683`), warmup-only `12/41`, and warmup + GRPO `12/41`, which confirms the old warmup/GRPO weighting was too weak to move the broader cross-site slice
 - current training-signal fix: both warmup and GRPO now weight later clean steps and successful terminal answer steps more heavily than early noisy navigation, while invalid and parse-failed steps are downweighted
 - current bootstrap rerun to watch: `outputs/qwen_bootstrap41_curriculum_v4_weightedfix/`, which reuses the same checked-in `bootstrap41` split on the current fixed stack plus the new warmup/GRPO step weighting so the comparison against `v3_mapfix` stays apples-to-apples
+- focused quantized-training proof: `outputs/qwen_shopping_full_warmup_smoke_v2_qlora/` now completes a real `bnb_4bit` warmup smoke on the WSL GPU stack, which confirms the optional QLoRA-style path is usable for local adapter training
+- current quantized bootstrap rerun to watch: `outputs/qwen_bootstrap41_curriculum_v6_qlora/`, which reuses the same checked-in `bootstrap41` split on the current weighted stack but now runs through the `bnb_4bit` loader path so we can compare speed and signal against the earlier reruns
 
 ## Scale-Up Target
 

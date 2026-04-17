@@ -217,6 +217,31 @@ class EvalSingleTaskTests(unittest.TestCase):
         self.assertEqual(config.model_path, str(adapter_dir))
         self.assertEqual(config.policy_name, "lfm2.5-350m")
 
+    def test_load_policy_threads_quantization_overrides_into_config(self) -> None:
+        captured: dict[str, object] = {}
+
+        class FakePolicy:
+            def __init__(self, config) -> None:
+                captured["config"] = config
+
+        module = importlib.import_module("scripts.eval_single_task")
+        with patch.object(module, "import_module", return_value=SimpleNamespace(QwenPolicy=FakePolicy)):
+            policy = load_policy(
+                "qwen",
+                model_dir_name="LFM2.5-350M",
+                quantization_mode="bnb_4bit",
+                quant_compute_dtype="float16",
+                quant_type="nf4",
+                quant_use_double_quant=False,
+            )
+
+        self.assertIsInstance(policy, FakePolicy)
+        config = captured["config"]
+        self.assertEqual(config.quantization_mode, "bnb_4bit")
+        self.assertEqual(config.quant_compute_dtype, "float16")
+        self.assertEqual(config.quant_type, "nf4")
+        self.assertFalse(config.quant_use_double_quant)
+
 
 if __name__ == "__main__":
     unittest.main()

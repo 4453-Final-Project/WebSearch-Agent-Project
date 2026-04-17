@@ -43,6 +43,7 @@ Latest larger-family signal on the executable `shopping_exact` curriculum:
 - `outputs/qwen_bootstrap41_curriculum_v3_mapfix/` is also complete with baseline, warmup-only, and warmup + GRPO all flat at `12/41`, which is the clearest current evidence that the previous warmup/GRPO sample weighting was too diffuse on the broader cross-site family
 - both warmup and GRPO now use step-aware sample weighting that emphasizes later clean steps and successful terminal answer steps while downweighting invalid or parse-failed steps
 - current cross-site rerun to watch: `outputs/qwen_bootstrap41_curriculum_v4_weightedfix/`, launched on the same checked-in `bootstrap41` split so the new weighted-training stack can be compared directly against `v3_mapfix`
+- the optional local quantized path is now wired too: `outputs/qwen_shopping_full_warmup_smoke_v2_qlora/` completed a real `bnb_4bit` warmup smoke on the WSL GPU stack, and the current quantized bootstrap rerun to watch is `outputs/qwen_bootstrap41_curriculum_v6_qlora/`
 
 The repo now also supports larger scripted curricula so we can scale past tiny slices:
 
@@ -75,6 +76,7 @@ RL4453/
 
 Use Python `3.12`. Keep `.venv/` and `models/` as siblings of the repo.
 For local `Qwen/Qwen3.5-2B` LoRA reloads, the active interpreter also needs `peft` and a `transformers` build new enough to recognize `qwen3_5`.
+For optional local QLoRA-style loads, the active interpreter also needs `bitsandbytes`.
 
 ## Model Targets
 

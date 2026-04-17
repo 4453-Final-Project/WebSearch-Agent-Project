@@ -37,6 +37,27 @@ class RunFamilyCurriculumTests(unittest.TestCase):
         self.assertTrue(args.reuse_existing_stages)
         self.assertEqual(args.min_training_task_count, 20)
         self.assertIsNone(args.preflight_out)
+        self.assertIsNone(args.quantization_mode)
+
+    def test_arg_parser_accepts_quantization_overrides(self) -> None:
+        args = build_arg_parser().parse_args(
+            [
+                "--family",
+                "shopping_exact",
+                "--quantization-mode",
+                "bnb_4bit",
+                "--quant-compute-dtype",
+                "float16",
+                "--quant-type",
+                "nf4",
+                "--no-quant-use-double-quant",
+            ]
+        )
+
+        self.assertEqual(args.quantization_mode, "bnb_4bit")
+        self.assertEqual(args.quant_compute_dtype, "float16")
+        self.assertEqual(args.quant_type, "nf4")
+        self.assertFalse(args.quant_use_double_quant)
 
     def test_resolve_preflight_out_path_uses_explicit_path(self) -> None:
         args = build_arg_parser().parse_args(["--preflight-out", "C:\\tmp\\preflight.json"])

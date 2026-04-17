@@ -12,6 +12,7 @@ from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 import requests
 
 from src.training.peft_setup import get_adapter_base_model_path, is_adapter_checkpoint
+from src.utils.quantization import build_bitsandbytes_quantization_config, resolve_quantized_device_map
 from src.utils.map_services import derive_map_goal_answer
 
 from .compat import load_policy_config, normalize_observation
@@ -177,7 +178,8 @@ class TransformersGPTQBackend:
                 self.model_path,
                 **model_kwargs,
             )
-        model = model.to(load_device)
+        if not self._uses_quantized_loading() and hasattr(model, "to"):
+            model = model.to(load_device)
 
         self._tokenizer = tokenizer
         self._model = model
@@ -222,21 +224,42 @@ class TransformersGPTQBackend:
         """Choose one concrete device for inference loads."""
 
         torch, _ = self._import_runtime_dependencies()
+        device_ctor = getattr(torch, "device", None)
         configured_device = self.config.device
         if configured_device:
-            return torch.device(configured_device)
-        if torch.cuda.is_available():
-            return torch.device("cuda")
-        return torch.device("cpu")
+            return device_ctor(configured_device) if callable(device_ctor) else configured_device
+        cuda_module = getattr(torch, "cuda", None)
+        if cuda_module is not None and callable(getattr(cuda_module, "is_available", None)) and cuda_module.is_available():
+            return device_ctor("cuda") if callable(device_ctor) else "cuda"
+        return device_ctor("cpu") if callable(device_ctor) else "cpu"
 
     def _build_inference_model_kwargs(self) -> dict[str, object]:
         """Build inference load kwargs without auto device placement."""
 
-        return {
+        kwargs: dict[str, object] = {
             "local_files_only": True,
             "torch_dtype": "auto",
             "low_cpu_mem_usage": False,
         }
+        if not self._uses_quantized_loading():
+            return kwargs
+
+        torch, transformers = self._import_runtime_dependencies()
+        quantization_config = build_bitsandbytes_quantization_config(
+            torch_module=torch,
+            transformers_module=transformers,
+            quantization_mode=self.config.quantization_mode,
+            quant_compute_dtype=self.config.quant_compute_dtype,
+            quant_type=self.config.quant_type,
+            quant_use_double_quant=self.config.quant_use_double_quant,
+        )
+        kwargs["quantization_config"] = quantization_config
+        kwargs["torch_dtype"] = getattr(torch, self.config.quant_compute_dtype, torch.bfloat16)
+        kwargs["device_map"] = resolve_quantized_device_map(self._resolve_load_device())
+        return kwargs
+
+    def _uses_quantized_loading(self) -> bool:
+        return bool((self.config.quantization_mode or "").strip())
 
     def _import_local_inference_helpers(self):
         """Import shared local-inference helpers only when generation is attempted."""

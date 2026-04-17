@@ -9,6 +9,7 @@ import tempfile
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
+from unittest import mock
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -144,6 +145,34 @@ class QwenBackendContractTests(unittest.TestCase):
         self.assertEqual(FakeTokenizerLoader.calls, 1)
         self.assertEqual(FakeModelLoader.calls, 1)
         self.assertEqual(len(fake_model.generate_calls), 2)
+
+    def test_quantized_inference_kwargs_include_quantization_config_when_enabled(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            backend = TransformersGPTQBackend(
+                PolicyConfig(
+                    model_path=temp_dir,
+                    device="cuda:0",
+                    quantization_mode="bnb_4bit",
+                    quant_compute_dtype="float16",
+                    quant_type="nf4",
+                    quant_use_double_quant=False,
+                )
+            )
+
+            fake_torch = SimpleNamespace(float16="float16", bfloat16="bfloat16", device=lambda value: value)
+            fake_transformers = SimpleNamespace(BitsAndBytesConfig=object)
+            backend._import_runtime_dependencies = lambda: (fake_torch, fake_transformers)  # type: ignore[method-assign]
+
+            fake_quant_config = object()
+            with mock.patch(
+                "src.agent.qwen_policy.build_bitsandbytes_quantization_config",
+                return_value=fake_quant_config,
+            ):
+                kwargs = backend._build_inference_model_kwargs()
+
+        self.assertEqual(kwargs["quantization_config"], fake_quant_config)
+        self.assertEqual(kwargs["device_map"], {"": 0})
+        self.assertEqual(kwargs["torch_dtype"], "float16")
 
     def test_adapter_directory_loads_base_model_then_attaches_adapter(self) -> None:
         class FakeIds(list):

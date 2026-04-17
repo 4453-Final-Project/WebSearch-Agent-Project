@@ -79,6 +79,10 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--weight-decay", type=float, default=0.0)
     parser.add_argument("--score-batch-size", type=int, default=1)
     parser.add_argument("--max-supervised-tokens", type=int, default=512)
+    parser.add_argument("--quantization-mode", default=None)
+    parser.add_argument("--quant-compute-dtype", default="bfloat16")
+    parser.add_argument("--quant-type", default="nf4")
+    parser.add_argument("--quant-use-double-quant", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument("--lora-r", type=int, default=8)
     parser.add_argument("--lora-alpha", type=int, default=16)
     parser.add_argument("--lora-dropout", type=float, default=0.05)
@@ -305,6 +309,10 @@ def _build_policy(args, *, model_path: str, temperature: float | None = None) ->
             repetition_penalty=profile.repetition_penalty,
             system_prompt=profile.system_prompt,
             use_chat_template=profile.use_chat_template,
+            quantization_mode=args.quantization_mode,
+            quant_compute_dtype=args.quant_compute_dtype,
+            quant_type=args.quant_type,
+            quant_use_double_quant=args.quant_use_double_quant,
             learning_rate=args.learning_rate,
             weight_decay=args.weight_decay,
             score_batch_size=args.score_batch_size,

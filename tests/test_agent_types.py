@@ -115,6 +115,10 @@ class LoadPolicyConfigTests(unittest.TestCase):
             "TASK3_MAX_NEW_TOKENS": "256",
             "TASK3_TEMPERATURE": "0.2",
             "TASK3_DEVICE": "cpu",
+            "TASK3_QUANTIZATION_MODE": "bnb_4bit",
+            "TASK3_QUANT_COMPUTE_DTYPE": "float16",
+            "TASK3_QUANT_TYPE": "fp4",
+            "TASK3_QUANT_USE_DOUBLE_QUANT": "false",
         }
         with mock.patch.dict(os.environ, env, clear=True):
             config = load_policy_config()
@@ -123,6 +127,10 @@ class LoadPolicyConfigTests(unittest.TestCase):
         self.assertEqual(config.max_new_tokens, 256)
         self.assertEqual(config.temperature, 0.2)
         self.assertEqual(config.device, "cpu")
+        self.assertEqual(config.quantization_mode, "bnb_4bit")
+        self.assertEqual(config.quant_compute_dtype, "float16")
+        self.assertEqual(config.quant_type, "fp4")
+        self.assertFalse(config.quant_use_double_quant)
 
 
 class ModelPathResolutionTests(unittest.TestCase):

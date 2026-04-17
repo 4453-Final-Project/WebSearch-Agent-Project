@@ -272,6 +272,10 @@ def load_policy(
     model_path: str | None = None,
     max_new_tokens: int | None = None,
     temperature: float | None = None,
+    quantization_mode: str | None = None,
+    quant_compute_dtype: str = "bfloat16",
+    quant_type: str = "nf4",
+    quant_use_double_quant: bool = True,
 ) -> Any:
     """Load a supported evaluation policy by name."""
 
@@ -306,6 +310,10 @@ def load_policy(
                 repetition_penalty=profile.repetition_penalty,
                 system_prompt=profile.system_prompt,
                 use_chat_template=profile.use_chat_template,
+                quantization_mode=quantization_mode,
+                quant_compute_dtype=quant_compute_dtype,
+                quant_type=quant_type,
+                quant_use_double_quant=quant_use_double_quant,
             )
         )
 
@@ -325,6 +333,15 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--model-path", default=None, help="Optional explicit local model path.")
     parser.add_argument("--max-new-tokens", type=int, default=None, help="Generation cap override.")
     parser.add_argument("--temperature", type=float, default=None, help="Sampling temperature override.")
+    parser.add_argument("--quantization-mode", default=None, help="Optional quantized load mode, such as bnb_4bit.")
+    parser.add_argument("--quant-compute-dtype", default="bfloat16", help="Quantized compute dtype override.")
+    parser.add_argument("--quant-type", default="nf4", help="4-bit quantization type override.")
+    parser.add_argument(
+        "--quant-use-double-quant",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Enable double quantization for 4-bit bitsandbytes loads.",
+    )
     parser.add_argument(
         "--headed",
         action="store_true",
@@ -351,6 +368,10 @@ def main(argv: list[str] | None = None) -> int:
         model_path=str(resolve_model_path(model_path=args.model_path, model_dir_name=args.model_dir_name)),
         max_new_tokens=args.max_new_tokens,
         temperature=args.temperature,
+        quantization_mode=args.quantization_mode,
+        quant_compute_dtype=args.quant_compute_dtype,
+        quant_type=args.quant_type,
+        quant_use_double_quant=args.quant_use_double_quant,
     )
     metrics = evaluate_single_task(
         policy=policy,
