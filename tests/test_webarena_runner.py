@@ -1532,9 +1532,10 @@ class WebArenaRunnerTests(unittest.TestCase):
                 return ""
 
         class FakeSearchPage:
-            def __init__(self, value):
+            def __init__(self, value, popularity):
                 self.closed = False
                 self._value = value
+                self._popularity = popularity
 
             def goto(self, url, wait_until=None):
                 return None
@@ -1544,6 +1545,8 @@ class WebArenaRunnerTests(unittest.TestCase):
                     if self._value is None:
                         raise RuntimeError("missing input")
                     return FakeInput(self._value)
+                if selector in {'[name="popularity"]', '[name="num_uses"]', '[name="number_of_uses"]'}:
+                    return FakeInput(self._popularity)
                 if selector == "body":
                     return FakeBody()
                 raise AssertionError(f"Unexpected selector: {selector}")
@@ -1554,10 +1557,15 @@ class WebArenaRunnerTests(unittest.TestCase):
         class FakeContext:
             def __init__(self):
                 self.pages = []
-                self._values = iter(["overnight duffle", "sprite yoga strap"])
+                self._rows = iter(
+                    [
+                        ("overnight duffle", "2"),
+                        ("sprite yoga strap", "7"),
+                    ]
+                )
 
             def new_page(self):
-                page = FakeSearchPage(next(self._values))
+                page = FakeSearchPage(*next(self._rows))
                 self.pages.append(page)
                 return page
 
@@ -1588,8 +1596,8 @@ class WebArenaRunnerTests(unittest.TestCase):
         )
 
         summary = serialized_observation["visible_page_summary"]
-        self.assertIn("Dashboard search term row: rank=1 | term=overnight duffle | uses=-1", summary)
-        self.assertIn("Dashboard search term row: rank=2 | term=sprite yoga strap | uses=-1", summary)
+        self.assertIn("Dashboard search term row: rank=1 | term=sprite yoga strap | uses=7", summary)
+        self.assertIn("Dashboard search term row: rank=2 | term=overnight duffle | uses=2", summary)
         self.assertEqual(len(env.page.context.pages), 2)
         self.assertTrue(all(page.closed for page in env.page.context.pages))
 

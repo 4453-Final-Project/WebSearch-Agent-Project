@@ -1468,29 +1468,44 @@ def _fetch_shopping_admin_search_term(page: Any, search_term_url: str) -> dict[s
     search_page = page.context.new_page()
     try:
         search_page.goto(search_term_url, wait_until="domcontentloaded")
-        for selector in (
-            '[name="search_query"]',
-            '[name="query_text"]',
-            '[name="search_term"]',
-            '[name="name"]',
-            '#search_query',
+        direct_field_values: dict[str, str] = {}
+        for selector, field_name in (
+            ('[name="search_query"]', "term"),
+            ('[name="query_text"]', "term"),
+            ('[name="search_term"]', "term"),
+            ('[name="name"]', "term"),
+            ('#search_query', "term"),
+            ('[name="popularity"]', "uses"),
+            ('[name="num_uses"]', "uses"),
+            ('[name="number_of_uses"]', "uses"),
+            ('[name="num_results"]', "num_results"),
         ):
             try:
                 value = _normalize_extracted_text(search_page.locator(selector).input_value())
             except Exception:
                 continue
-            if value and value.lower() not in {"search query", "search term"}:
-                body_text = ""
-                try:
-                    body_text = _normalize_extracted_text(search_page.locator("body").inner_text())
-                except Exception:
-                    pass
-                details = _extract_shopping_admin_search_term_details_from_body_text(body_text)
-                return {
-                    "term": value,
-                    "uses": details.get("uses", -1),
-                    "_index": len(page.context.pages),
-                }
+            if not value:
+                continue
+            if field_name == "term" and value.lower() in {"search query", "search term"}:
+                continue
+            direct_field_values[field_name] = value
+        if direct_field_values.get("term"):
+            body_text = ""
+            try:
+                body_text = _normalize_extracted_text(search_page.locator("body").inner_text())
+            except Exception:
+                pass
+            details = _extract_shopping_admin_search_term_details_from_body_text(body_text)
+            uses_value = direct_field_values.get("uses", "")
+            try:
+                uses = int(uses_value) if uses_value else int(details.get("uses", -1))
+            except (TypeError, ValueError):
+                uses = int(details.get("uses", -1))
+            return {
+                "term": direct_field_values["term"],
+                "uses": uses,
+                "_index": len(page.context.pages),
+            }
         try:
             body_text = _normalize_extracted_text(search_page.locator("body").inner_text())
         except Exception:
