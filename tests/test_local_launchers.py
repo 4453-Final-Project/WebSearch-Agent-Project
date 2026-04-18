@@ -322,6 +322,8 @@ class LocalLaunchersTests(unittest.TestCase):
             "validate_bootstrap41_blocker_audit.ps1",
             "refresh_bootstrap41_current_stack_summary.sh",
             "refresh_bootstrap41_current_stack_summary.ps1",
+            "validate_bootstrap41_current_stack_summary.sh",
+            "validate_bootstrap41_current_stack_summary.ps1",
             "refresh_bootstrap44_curriculum_manifest.sh",
             "refresh_bootstrap44_curriculum_manifest.ps1",
             "refresh_bootstrap44_current_stack_scorecard.sh",
@@ -415,6 +417,15 @@ class LocalLaunchersTests(unittest.TestCase):
         for script in (bash_script, powershell_script):
             self.assertIn("build_family_override_summary.py", script)
             self.assertIn("bootstrap41_current_stack_summary_manifest.json", script)
+
+    def test_bootstrap41_current_stack_validation_wrappers_use_checked_in_summary(self) -> None:
+        bash_script = _read_local_script("validate_bootstrap41_current_stack_summary.sh")
+        powershell_script = _read_local_script("validate_bootstrap41_current_stack_summary.ps1")
+
+        for script in (bash_script, powershell_script):
+            self.assertIn("validate_family_summary.py", script)
+            self.assertIn("bootstrap41_current_stack_summary.json", script)
+            self.assertIn("133", script)
 
     def test_bootstrap41_blocker_audit_wrappers_use_checked_in_manifest(self) -> None:
         bash_script = _read_local_script("refresh_bootstrap41_blocker_audit.sh")
