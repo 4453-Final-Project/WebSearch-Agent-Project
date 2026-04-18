@@ -1549,7 +1549,7 @@ def _collect_shopping_admin_review_count_lines(
     goal: str,
     env: Any,
 ) -> list[str]:
-    if not _goal_requests_admin_review_count(goal):
+    if not (_goal_requests_admin_review_count(goal) or _goal_requests_admin_review_status_count(goal)):
         return []
 
     current_url = _as_text(obs.get("url"))
@@ -1557,18 +1557,22 @@ def _collect_shopping_admin_review_count_lines(
     if not parsed.netloc.endswith(":7780") or not (parsed.path or "/").startswith("/admin/admin/dashboard"):
         return []
 
-    review_term = _extract_admin_review_term(goal)
-    if not review_term:
-        return []
-
     page = getattr(getattr(env, "unwrapped", env), "page", None)
     if page is None or not hasattr(page, "context"):
         return []
 
-    review_count = _fetch_shopping_admin_review_count(page, review_term=review_term)
-    if review_count is None:
-        return []
-    return [f"Admin review mention count: term={review_term} | count={review_count}"]
+    review_term = _extract_admin_review_term(goal)
+    if review_term:
+        review_count = _fetch_shopping_admin_review_count(page, review_term=review_term)
+        if review_count is not None:
+            return [f"Admin review mention count: term={review_term} | count={review_count}"]
+
+    review_status = _extract_admin_review_status(goal)
+    if review_status:
+        review_count = _fetch_shopping_admin_review_status_count(page, review_status=review_status)
+        if review_count is not None:
+            return [f"Admin review status count: status={review_status} | count={review_count}"]
+    return []
 
 
 def _goal_requests_admin_review_count(goal: str) -> bool:
@@ -1580,6 +1584,15 @@ def _goal_requests_admin_review_count(goal: str) -> bool:
     if "number of reviews" in lowered and "term" in lowered:
         return True
     return "how many reviews" in lowered and "term" in lowered
+
+
+def _goal_requests_admin_review_status_count(goal: str) -> bool:
+    lowered = " ".join((goal or "").lower().split())
+    if "review" not in lowered:
+        return False
+    if "pending reviews" in lowered or "approved reviews" in lowered or "not approved reviews" in lowered:
+        return True
+    return "count of pending reviews" in lowered or "count of approved reviews" in lowered
 
 
 def _extract_admin_review_term(goal: str) -> str:
@@ -1602,6 +1615,17 @@ def _extract_admin_review_term(goal: str) -> str:
     return ""
 
 
+def _extract_admin_review_status(goal: str) -> str:
+    lowered = " ".join((goal or "").lower().split())
+    if "not approved" in lowered:
+        return "Not Approved"
+    if "pending" in lowered:
+        return "Pending"
+    if "approved" in lowered:
+        return "Approved"
+    return ""
+
+
 def _fetch_shopping_admin_review_count(page: Any, *, review_term: str) -> int | None:
     review_page = page.context.new_page()
     try:
@@ -1612,6 +1636,32 @@ def _fetch_shopping_admin_review_count(page: Any, *, review_term: str) -> int | 
         detail_filter = review_page.locator("#reviewGrid_filter_detail")
         detail_filter.fill(review_term)
         detail_filter.press("Enter")
+        try:
+            review_page.wait_for_load_state("domcontentloaded")
+        except Exception:
+            pass
+        time.sleep(1)
+        body_text = _normalize_extracted_text(review_page.locator("body").inner_text())
+        match = re.search(r"(\d+)\s+records\s+found", body_text, re.IGNORECASE)
+        if match is None:
+            return None
+        return int(match.group(1))
+    except Exception:
+        return None
+    finally:
+        review_page.close()
+
+
+def _fetch_shopping_admin_review_status_count(page: Any, *, review_status: str) -> int | None:
+    review_page = page.context.new_page()
+    try:
+        current_url = _as_text(getattr(page, "url", ""))
+        parsed = urlparse(current_url or "")
+        review_url = f"{parsed.scheme or 'http'}://{parsed.netloc}/admin/review/product/?limit=200"
+        review_page.goto(review_url, wait_until="domcontentloaded")
+        status_filter = review_page.locator("#reviewGrid_filter_status")
+        status_filter.select_option(label=review_status)
+        status_filter.press("Enter")
         try:
             review_page.wait_for_load_state("domcontentloaded")
         except Exception:

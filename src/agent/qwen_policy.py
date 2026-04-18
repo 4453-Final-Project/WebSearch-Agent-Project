@@ -2946,17 +2946,22 @@ def _derive_admin_dashboard_review_count_answer(goal: str, visible_page_summary:
     lowered = " ".join((goal or "").lower().split())
     if "review" not in lowered:
         return ""
-    if "mention term" not in lowered and "mention the term" not in lowered and "number of reviews" not in lowered:
-        return ""
+    review_status = _extract_admin_dashboard_review_status(goal)
+    if review_status:
+        for row in _extract_admin_dashboard_review_status_count_rows(visible_page_summary):
+            if row.get("status", "").lower() != review_status.lower():
+                continue
+            count = row.get("count", "")
+            if count:
+                return count
     review_term = _extract_admin_dashboard_review_term(goal)
-    if not review_term:
-        return ""
-    for row in _extract_admin_dashboard_review_count_rows(visible_page_summary):
-        if row.get("term", "").lower() != review_term.lower():
-            continue
-        count = row.get("count", "")
-        if count:
-            return count
+    if review_term:
+        for row in _extract_admin_dashboard_review_count_rows(visible_page_summary):
+            if row.get("term", "").lower() != review_term.lower():
+                continue
+            count = row.get("count", "")
+            if count:
+                return count
     return ""
 
 
@@ -2977,6 +2982,17 @@ def _extract_admin_dashboard_review_term(goal: str) -> str:
     )
     if fallback_match:
         return " ".join(fallback_match.group("term").rstrip("?.!,").split())
+    return ""
+
+
+def _extract_admin_dashboard_review_status(goal: str) -> str:
+    lowered = " ".join((goal or "").lower().split())
+    if "not approved" in lowered:
+        return "Not Approved"
+    if "pending" in lowered:
+        return "Pending"
+    if "approved" in lowered:
+        return "Approved"
     return ""
 
 
@@ -3133,6 +3149,24 @@ def _extract_admin_dashboard_review_count_rows(visible_page_summary: str) -> lis
             key, value = part.split("=", 1)
             row[key.strip()] = value.strip()
         if row.get("term") and row.get("count"):
+            rows.append(row)
+    return rows
+
+
+def _extract_admin_dashboard_review_status_count_rows(visible_page_summary: str) -> list[dict[str, str]]:
+    rows: list[dict[str, str]] = []
+    for raw_line in visible_page_summary.splitlines():
+        line = " ".join(raw_line.split())
+        if not line.startswith("Admin review status count:"):
+            continue
+        payload = line.split(":", 1)[1].strip()
+        row: dict[str, str] = {}
+        for part in payload.split("|"):
+            if "=" not in part:
+                continue
+            key, value = part.split("=", 1)
+            row[key.strip()] = value.strip()
+        if row.get("status") and row.get("count"):
             rows.append(row)
     return rows
 

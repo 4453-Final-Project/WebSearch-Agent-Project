@@ -1941,6 +1941,29 @@ class QwenPolicyTests(unittest.TestCase):
         self.assertEqual(decision.action_text, 'send_msg_to_user("6")')
         self.assertIsNone(decision.parse_error)
 
+    def test_shopping_admin_dashboard_answers_review_status_count_from_appended_rows(self) -> None:
+        observation = NormalizedObservation(
+            goal="What is the total count of Pending reviews amongst all the reviews?",
+            current_url="http://3.14.148.71:7780/admin/admin/dashboard/",
+            open_tabs=[
+                OpenTab(
+                    title="Dashboard / Magento Admin",
+                    url="http://3.14.148.71:7780/admin/admin/dashboard/",
+                )
+            ],
+            visible_page_summary="Admin review status count: status=Pending | count=5",
+            dom_or_ax_snippet='[687] role=textbox name="Search" clickable',
+            previous_actions=[],
+            previous_errors=[],
+        )
+        backend = FakeBackend(['ACTION: click("687")'])
+        policy = QwenPolicy(backend=backend, config=self.config)
+
+        decision = policy.act(observation, step_idx=0)
+
+        self.assertEqual(decision.action_text, 'send_msg_to_user("5")')
+        self.assertIsNone(decision.parse_error)
+
     def test_shopping_admin_dashboard_prefers_report_rows_for_month_specific_product_type(self) -> None:
         observation = NormalizedObservation(
             goal="What is the top-1 best-selling product type in Jan 2023",
