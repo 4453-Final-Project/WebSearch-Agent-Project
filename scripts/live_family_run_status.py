@@ -614,6 +614,12 @@ def _summarize_warmup_training(path: Path) -> dict[str, object]:
     return {
         "selected_demo_count": payload.get("selected_demo_count", 0),
         "selected_demo_task_counts": payload.get("selected_demo_task_counts", {}),
+        "source_task_sample_counts": metrics.get("source_task_sample_counts", {}),
+        "average_epoch_task_sample_counts": metrics.get(
+            "average_epoch_task_sample_counts",
+            {},
+        ),
+        "task_sample_multipliers": metrics.get("task_sample_multipliers", {}),
         "average_demo_reward": float(metrics.get("average_demo_reward", 0.0)),
         "final_loss": float(metrics.get("final_loss", 0.0)),
         "epochs": int(metrics.get("epochs", 0)),

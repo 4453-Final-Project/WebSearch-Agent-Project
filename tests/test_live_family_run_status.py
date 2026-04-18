@@ -277,6 +277,9 @@ class LiveFamilyRunStatusTests(unittest.TestCase):
                         "selected_demo_count": 16,
                         "selected_demo_task_counts": {"128": 2},
                         "warmup_metrics": {
+                            "source_task_sample_counts": {"96": 1, "128": 2},
+                            "average_epoch_task_sample_counts": {"96": 1.0, "128": 3.0},
+                            "task_sample_multipliers": {"96": 1.0, "128": 2.5},
                             "average_demo_reward": 1.0,
                             "final_loss": 0.02,
                             "epochs": 1,
@@ -330,6 +333,9 @@ class LiveFamilyRunStatusTests(unittest.TestCase):
             {
                 "selected_demo_count": 16,
                 "selected_demo_task_counts": {"128": 2},
+                "source_task_sample_counts": {"96": 1, "128": 2},
+                "average_epoch_task_sample_counts": {"96": 1.0, "128": 3.0},
+                "task_sample_multipliers": {"96": 1.0, "128": 2.5},
                 "average_demo_reward": 1.0,
                 "final_loss": 0.02,
                 "epochs": 1,
