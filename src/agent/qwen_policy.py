@@ -3642,7 +3642,7 @@ def _derive_admin_dashboard_bestseller_answer(goal: str, visible_page_summary: s
     if aggregated_report_rows:
         return _derive_admin_bestseller_answer_from_rows(goal, aggregated_report_rows)
     aggregate_rows = _extract_admin_bestseller_aggregate_rows(visible_page_summary)
-    if _goal_mentions_specific_period(lowered) and aggregate_rows:
+    if _goal_prefers_aggregate_admin_bestseller_rows(lowered) and aggregate_rows:
         return _derive_admin_bestseller_answer_from_rows(goal, aggregate_rows)
     rows = _extract_admin_dashboard_bestseller_rows(visible_page_summary)
     if rows:
@@ -3698,6 +3698,14 @@ def _goal_mentions_specific_period(lowered_goal: str) -> bool:
     if re.search(r"\bq(?:uarter)?\s*[1-4]\b", lowered_goal):
         return True
     return bool(re.search(r"\b(19|20)\d{2}\b", lowered_goal))
+
+
+def _goal_prefers_aggregate_admin_bestseller_rows(lowered_goal: str) -> bool:
+    if not _goal_mentions_specific_period(lowered_goal):
+        return False
+    if _goal_mentions_specific_month(lowered_goal):
+        return True
+    return "brand" in lowered_goal or "product type" in lowered_goal
 
 
 def _extract_admin_dashboard_bestseller_rows(visible_page_summary: str) -> list[dict[str, str]]:
