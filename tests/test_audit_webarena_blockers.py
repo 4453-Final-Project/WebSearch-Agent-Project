@@ -12,7 +12,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from scripts.audit_webarena_blockers import audit_webarena_blockers
+from scripts.audit_webarena_blockers import _merge_manifest_args, audit_webarena_blockers, build_arg_parser
 
 
 class AuditWebArenaBlockersTests(unittest.TestCase):
@@ -117,6 +117,70 @@ class AuditWebArenaBlockersTests(unittest.TestCase):
             task = report["tasks"][0]
             self.assertTrue(task["grounded_answer_matches_reference"])
             self.assertEqual(task["grounded_answer"], "0.14 - 745.00")
+
+    def test_manifest_merges_checked_in_artifacts(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_path = Path(tmpdir)
+            artifact_dir = tmp_path / "eval_task_133"
+            episode_dir = artifact_dir / "episode_0"
+            episode_dir.mkdir(parents=True)
+            (artifact_dir / "metrics.json").write_text(
+                json.dumps({"task_id": 133, "success_rate": 0.0}),
+                encoding="utf-8",
+            )
+            (episode_dir / "episode.json").write_text(
+                json.dumps({"failure_reasons": ["terminated_without_positive_reward"]}),
+                encoding="utf-8",
+            )
+            (episode_dir / "steps.jsonl").write_text(
+                json.dumps(
+                    {
+                        "parsed_action": 'send_msg_to_user("0")',
+                        "raw_agent_output": 'ACTION: send_msg_to_user("0")',
+                        "reward": 0.0,
+                        "terminated": True,
+                        "truncated": False,
+                    }
+                ),
+                encoding="utf-8",
+            )
+            manifest_path = tmp_path / "bootstrap41_blocker_audit_manifest.json"
+            out_path = tmp_path / "bootstrap41_blocker_audit.json"
+            manifest_path.write_text(
+                json.dumps(
+                    {
+                        "out": "bootstrap41_blocker_audit.json",
+                        "artifacts": {"133": "eval_task_133"},
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            parser = build_arg_parser()
+            args = parser.parse_args(["--manifest", str(manifest_path)])
+            args._out_explicit = False
+            args = _merge_manifest_args(args)
+
+            report = audit_webarena_blockers(
+                [(int(task_id), Path(path)) for task_id, path in (spec.split("=", 1) for spec in args.artifact)],
+                task_configs={
+                    133: {
+                        "task_id": 133,
+                        "intent": "How many commits did Steve make?",
+                        "sites": ["gitlab"],
+                        "eval": {
+                            "reference_answers": {"must_include": ["2"]},
+                            "reference_answer_raw_annotation": "2",
+                        },
+                    }
+                },
+            )
+            out_path.write_text(json.dumps(report), encoding="utf-8")
+
+            payload = json.loads(out_path.read_text(encoding="utf-8"))
+            self.assertEqual(payload["task_count"], 1)
+            self.assertEqual(payload["mismatch_task_ids"], [133])
+            self.assertEqual(payload["tasks"][0]["grounded_answer"], "0")
 
 
 if __name__ == "__main__":

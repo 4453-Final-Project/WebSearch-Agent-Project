@@ -23,6 +23,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Audit saved WebArena eval artifacts against the baked task references."
     )
+    parser.add_argument("--manifest", type=Path, default=None)
     parser.add_argument(
         "--artifact",
         action="append",
@@ -30,7 +31,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
         metavar="TASK_ID=ARTIFACT_DIR",
         help="Saved eval artifact directory for a task, e.g. 124=outputs/eval_task_124_pricerangefix_v2",
     )
-    parser.add_argument("--out", type=Path, required=True)
+    parser.add_argument("--out", type=Path, default=None)
     return parser
 
 
@@ -41,6 +42,46 @@ def parse_artifact_spec(spec: str) -> tuple[int, Path]:
             f"Invalid artifact spec {spec!r}. Expected TASK_ID=ARTIFACT_DIR."
         )
     return int(task_id_text.strip()), Path(artifact_dir_text.strip())
+
+
+def _load_manifest(path: Path) -> dict[str, Any]:
+    manifest = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(manifest, dict):
+        raise ValueError(f"Manifest must be a JSON object: {path}")
+    return manifest
+
+
+def _resolve_manifest_path(manifest_path: Path, value: str | None) -> Path | None:
+    if value is None:
+        return None
+    path = Path(value)
+    if path.is_absolute():
+        return path
+    return (manifest_path.parent / path).resolve()
+
+
+def _merge_manifest_args(args: argparse.Namespace) -> argparse.Namespace:
+    if args.manifest is None:
+        return args
+    manifest_path = args.manifest.resolve()
+    manifest = _load_manifest(manifest_path)
+    if getattr(args, "_out_explicit", False) is False and "out" in manifest:
+        args.out = _resolve_manifest_path(manifest_path, str(manifest["out"]))
+    manifest_artifacts = manifest.get("artifacts", {})
+    if not isinstance(manifest_artifacts, dict):
+        raise ValueError(f"manifest.artifacts must be an object: {manifest_path}")
+    merged_artifacts = {
+        str(task_id): str(_resolve_manifest_path(manifest_path, str(artifact_dir)))
+        for task_id, artifact_dir in manifest_artifacts.items()
+    }
+    cli_artifacts = dict(parse_artifact_spec(spec) for spec in args.artifact)
+    for task_id, artifact_dir in cli_artifacts.items():
+        merged_artifacts[str(task_id)] = str(artifact_dir)
+    args.artifact = [
+        f"{task_id}={artifact_dir}"
+        for task_id, artifact_dir in sorted(merged_artifacts.items(), key=lambda item: int(item[0]))
+    ]
+    return args
 
 
 def load_webarena_task_configs() -> dict[int, dict[str, Any]]:
@@ -155,7 +196,12 @@ def audit_webarena_blockers(
 
 
 def main() -> int:
-    args = build_arg_parser().parse_args()
+    parser = build_arg_parser()
+    args = parser.parse_args()
+    args._out_explicit = "--out" in sys.argv
+    args = _merge_manifest_args(args)
+    if args.out is None:
+        raise ValueError("An output path is required via --out or --manifest")
     artifact_specs = [parse_artifact_spec(spec) for spec in args.artifact]
     payload = audit_webarena_blockers(artifact_specs)
     write_json_atomic(args.out, payload)

@@ -1,0 +1,8 @@
+{
+  "out": "../../../outputs/bootstrap41_blocker_audit_v1.json",
+  "artifacts": {
+    "124": "../../../outputs/eval_task_124_pricerangefix_v2",
+    "133": "../../../outputs/eval_task_133_bootstrap_gitlabcountfix_v1",
+    "141": "../../../outputs/eval_task_141_spendfix_v1"
+  }
+}
