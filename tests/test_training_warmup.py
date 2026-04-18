@@ -115,6 +115,33 @@ class WarmupHelpersTests(unittest.TestCase):
         self.assertGreater(metrics["samples_used"], 0)
         self.assertGreater(float(policy.parameter.detach().item()), initial_value)
 
+    def test_supervised_warmup_reports_task_sampling_mix(self) -> None:
+        policy = FakePolicy()
+        shopping = make_episode(seed=8, reward=1.0, success=True)
+        gitlab = make_episode(seed=9, reward=1.0, success=True)
+        shopping.task_id = 21
+        gitlab.task_id = 132
+
+        metrics = run_supervised_warmup(
+            policy,
+            [shopping, gitlab],
+            WarmupConfig(
+                epochs=12,
+                batch_size=1,
+                max_grad_norm=1.0,
+                success_only=True,
+                shuffle_seed=0,
+                task_sample_multipliers={132: 4.0},
+            ),
+        )
+
+        self.assertEqual(metrics["source_task_sample_counts"], {"21": 1, "132": 1})
+        self.assertEqual(metrics["task_sample_multipliers"], {"21": 1.0, "132": 4.0})
+        self.assertGreater(
+            metrics["average_epoch_task_sample_counts"]["132"],
+            metrics["average_epoch_task_sample_counts"]["21"],
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

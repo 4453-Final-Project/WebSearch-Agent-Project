@@ -45,6 +45,9 @@ class WarmupMetrics:
     success_demo_count: int
     average_demo_reward: float
     final_loss: float
+    source_task_sample_counts: dict[str, int] = field(default_factory=dict)
+    average_epoch_task_sample_counts: dict[str, float] = field(default_factory=dict)
+    task_sample_multipliers: dict[str, float] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, float | int]:
         return asdict(self)
@@ -52,6 +55,7 @@ class WarmupMetrics:
 
 @dataclass(slots=True)
 class WarmupSample:
+    task_id: int
     prompt: str
     response_text: str
     sample_weight: float
@@ -114,6 +118,7 @@ def build_warmup_samples(
         ):
             samples.append(
                 WarmupSample(
+                    task_id=trajectory.task_id,
                     prompt=build_compact_warmup_prompt(step, model_system_prompt=model_system_prompt),
                     response_text=step.response_text,
                     sample_weight=sample_weight,
@@ -150,8 +155,11 @@ def run_supervised_warmup(policy, trajectories: Sequence[EpisodeTrajectory], con
     rng = random.Random(config.shuffle_seed)
     final_loss = 0.0
     accumulation_steps = max(1, config.gradient_accumulation_steps)
+    source_task_sample_counts = _count_samples_by_task(samples)
+    epoch_task_sample_counts: dict[int, int] = {}
     for _ in range(config.epochs):
         shuffled = _sample_epoch_warmup_samples(samples, rng)
+        _accumulate_sample_counts(epoch_task_sample_counts, shuffled)
         policy.zero_grad()
         pending_steps = 0
 
@@ -182,6 +190,14 @@ def run_supervised_warmup(policy, trajectories: Sequence[EpisodeTrajectory], con
 
     success_demo_count = sum(int(trajectory.success) for trajectory in usable_trajectories)
     average_demo_reward = sum(trajectory.reward for trajectory in usable_trajectories) / max(1, len(usable_trajectories))
+    average_epoch_task_sample_counts = {
+        str(task_id): epoch_task_sample_counts.get(task_id, 0) / max(1, config.epochs)
+        for task_id in sorted(source_task_sample_counts)
+    }
+    task_sample_multipliers = {
+        str(task_id): float(config.task_sample_multipliers.get(task_id, 1.0))
+        for task_id in sorted(source_task_sample_counts)
+    }
     return WarmupMetrics(
         epochs=config.epochs,
         episodes_used=len(usable_trajectories),
@@ -189,6 +205,9 @@ def run_supervised_warmup(policy, trajectories: Sequence[EpisodeTrajectory], con
         success_demo_count=success_demo_count,
         average_demo_reward=float(average_demo_reward),
         final_loss=final_loss,
+        source_task_sample_counts={str(task_id): count for task_id, count in sorted(source_task_sample_counts.items())},
+        average_epoch_task_sample_counts=average_epoch_task_sample_counts,
+        task_sample_multipliers=task_sample_multipliers,
     ).to_dict()
 
 
@@ -210,6 +229,18 @@ def _sample_epoch_warmup_samples(
 
     sampled_indices = rng.choices(range(len(samples)), weights=sampling_weights, k=len(samples))
     return [samples[index] for index in sampled_indices]
+
+
+def _count_samples_by_task(samples: Sequence[WarmupSample]) -> dict[int, int]:
+    counts: dict[int, int] = {}
+    for sample in samples:
+        counts[sample.task_id] = counts.get(sample.task_id, 0) + 1
+    return counts
+
+
+def _accumulate_sample_counts(target: dict[int, int], samples: Sequence[WarmupSample]) -> None:
+    for sample in samples:
+        target[sample.task_id] = target.get(sample.task_id, 0) + 1
 
 
 def build_compact_warmup_prompt(step, *, model_system_prompt: str | None = None) -> str:
