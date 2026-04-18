@@ -260,6 +260,8 @@ class LocalLaunchersTests(unittest.TestCase):
             "refresh_bootstrap41_curriculum_manifest.ps1",
             "refresh_bootstrap44_curriculum_manifest.sh",
             "refresh_bootstrap44_curriculum_manifest.ps1",
+            "refresh_bootstrap44_current_stack_scorecard.sh",
+            "refresh_bootstrap44_current_stack_scorecard.ps1",
             "refresh_web_mix88_curriculum_manifest.sh",
             "refresh_web_mix88_curriculum_manifest.ps1",
             "refresh_web_mix91_curriculum_manifest.sh",
@@ -268,6 +270,21 @@ class LocalLaunchersTests(unittest.TestCase):
 
         for filename in expected_files:
             self.assertTrue((LOCAL_SCRIPTS / filename).exists(), filename)
+
+    def test_bootstrap44_current_stack_refresh_wrappers_use_checked_in_inputs(self) -> None:
+        bash_script = _read_local_script("refresh_bootstrap44_current_stack_scorecard.sh")
+        powershell_script = _read_local_script("refresh_bootstrap44_current_stack_scorecard.ps1")
+
+        for script in (bash_script, powershell_script):
+            self.assertIn("build_expanded_family_stage_scorecard.py", script)
+            self.assertIn("bootstrap44_curriculum_manifest.json", script)
+            self.assertIn("bootstrap41_current_stack_summary.json", script)
+            self.assertIn("eval_task_12_bootstrap_reviewcount_v1", script)
+            self.assertIn("eval_task_13_bootstrap_reviewcount_v1", script)
+            self.assertIn("eval_task_144_spendfix_v1", script)
+            self.assertIn("bootstrap44_current_stack_scorecard.json", script)
+            self.assertIn("bootstrap44_current_stack_audit.json", script)
+            self.assertIn("--audit-out", script)
 
 
 if __name__ == "__main__":
