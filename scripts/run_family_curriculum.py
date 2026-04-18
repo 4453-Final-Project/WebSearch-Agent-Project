@@ -582,7 +582,8 @@ def _build_stage_args(args, split: TaskSplit, out_dir: Path, warmup_demo_dir: Pa
         model_dir_name=args.model_dir_name,
         model_path=args.model_path,
         warmup_demo_dir=[str(warmup_demo_dir)],
-        warmup_demo_limit_per_task=_resolve_family_task_group_int_overrides(
+        warmup_demo_limit_per_task=args.warmup_demo_limit_per_task,
+        warmup_demo_limit_override=_resolve_family_task_group_int_overrides(
             split.family_name,
             split.warmup_task_ids,
             default_value=args.warmup_demo_limit_per_task,
@@ -591,13 +592,14 @@ def _build_stage_args(args, split: TaskSplit, out_dir: Path, warmup_demo_dir: Pa
         warmup_epochs=args.warmup_epochs,
         warmup_batch_size=args.warmup_batch_size,
         warmup_gradient_accumulation_steps=args.warmup_gradient_accumulation_steps,
-        warmup_sample_multipliers=_resolve_family_task_group_float_overrides(
+        warmup_sample_multiplier_override=_resolve_family_task_group_float_overrides(
             split.family_name,
             split.warmup_task_ids,
             default_value=1.0,
             group_overrides=_get_group_float_overrides(args, "warmup_task_group_sample_multiplier"),
         ),
-        groups_per_task=_resolve_family_task_group_int_overrides(
+        groups_per_task=args.groups_per_task,
+        task_groups_per_task=_resolve_family_task_group_int_overrides(
             split.family_name,
             split.grpo_task_ids,
             default_value=args.groups_per_task,

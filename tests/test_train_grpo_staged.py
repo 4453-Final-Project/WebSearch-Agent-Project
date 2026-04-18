@@ -141,6 +141,13 @@ class TrainGrpoStagedTests(unittest.TestCase):
 
         self.assertEqual(overrides, {132: 4, 133: 5})
 
+    def test_resolve_warmup_demo_limits_accepts_dict_overrides(self) -> None:
+        args = Namespace(warmup_demo_limit_override={132: 4, 133: 5})
+
+        overrides = _resolve_warmup_demo_limits(args)
+
+        self.assertEqual(overrides, {132: 4, 133: 5})
+
     def test_resolve_task_groups_per_task_parses_cli_entries(self) -> None:
         args = Namespace(task_groups_per_task=["134=4", "135=5"])
 
@@ -148,8 +155,22 @@ class TrainGrpoStagedTests(unittest.TestCase):
 
         self.assertEqual(overrides, {134: 4, 135: 5})
 
+    def test_resolve_task_groups_per_task_accepts_dict_overrides(self) -> None:
+        args = Namespace(task_groups_per_task={134: 4, 135: 5})
+
+        overrides = _resolve_task_groups_per_task(args)
+
+        self.assertEqual(overrides, {134: 4, 135: 5})
+
     def test_resolve_warmup_sample_multipliers_parses_cli_entries(self) -> None:
         args = Namespace(warmup_sample_multiplier_override=["132=2.5", "133=3.0"])
+
+        overrides = _resolve_warmup_sample_multipliers(args)
+
+        self.assertEqual(overrides, {132: 2.5, 133: 3.0})
+
+    def test_resolve_warmup_sample_multipliers_accepts_dict_overrides(self) -> None:
+        args = Namespace(warmup_sample_multiplier_override={132: 2.5, 133: 3.0})
 
         overrides = _resolve_warmup_sample_multipliers(args)
 

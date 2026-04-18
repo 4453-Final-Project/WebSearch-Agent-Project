@@ -698,8 +698,10 @@ class RunFamilyCurriculumTests(unittest.TestCase):
 
         stage_args = _build_stage_args(args, split, Path("C:\\tmp\\out"), Path("C:\\tmp\\demos"))
 
-        self.assertEqual(stage_args.groups_per_task, {134: 4})
-        self.assertEqual(stage_args.warmup_demo_limit_per_task, {132: 4})
+        self.assertEqual(stage_args.groups_per_task, 2)
+        self.assertEqual(stage_args.task_groups_per_task, {134: 4})
+        self.assertEqual(stage_args.warmup_demo_limit_per_task, 2)
+        self.assertEqual(stage_args.warmup_demo_limit_override, {132: 4})
 
     def test_build_stage_args_applies_group_specific_warmup_sample_multipliers(self) -> None:
         split = TaskSplit(
@@ -722,7 +724,7 @@ class RunFamilyCurriculumTests(unittest.TestCase):
 
         stage_args = _build_stage_args(args, split, Path("C:\\tmp\\out"), Path("C:\\tmp\\demos"))
 
-        self.assertEqual(stage_args.warmup_sample_multipliers, {132: 2.5})
+        self.assertEqual(stage_args.warmup_sample_multiplier_override, {132: 2.5})
 
     def test_run_baseline_eval_applies_group_specific_max_steps(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
