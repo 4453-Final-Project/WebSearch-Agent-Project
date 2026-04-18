@@ -24,6 +24,7 @@ from src.agent.qwen_policy import (
     _normalize_gitlab_ssh_clone_url_for_benchmark,
     _normalize_gitlab_commit_date_query,
     _normalize_no_split_modules,
+    _shopping_review_content_matches_phrase,
 )
 from src.agent.types import NormalizedObservation, OpenTab, PolicyConfig
 
@@ -840,6 +841,34 @@ class QwenPolicyTests(unittest.TestCase):
             'send_msg_to_user("Joseph Brzezinski, Catso, Dibbins, Anglebert Dinkherhump, Michelle Davis")',
         )
         self.assertIsNone(decision.parse_error)
+
+    def test_shopping_review_phrase_match_handles_fingerprint_resistance_language(self) -> None:
+        self.assertTrue(
+            _shopping_review_content_matches_phrase(
+                "It is super clear and fingerprint resistant.",
+                "good fingerprint resistant",
+            )
+        )
+        self.assertTrue(
+            _shopping_review_content_matches_phrase(
+                "It does seem to resist fingerprints and stay cleaner.",
+                "good fingerprint resistant",
+            )
+        )
+
+    def test_shopping_review_phrase_match_handles_customer_service_complaints(self) -> None:
+        self.assertTrue(
+            _shopping_review_content_matches_phrase(
+                "Called customer service, and through very broken English was told there was no way to change it.",
+                "complain of the customer service",
+            )
+        )
+        self.assertTrue(
+            _shopping_review_content_matches_phrase(
+                "I went online looking for a customer support phone number; I could not find one and felt insulted.",
+                "complain of the customer service",
+            )
+        )
 
     @patch("src.agent.qwen_policy.requests.get")
     def test_gitlab_click_timeout_rewrites_to_repo_goto(self, mock_get) -> None:

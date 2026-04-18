@@ -1770,6 +1770,31 @@ def _shopping_review_content_matches_phrase(content: str, target_phrase: str) ->
     if "ear cup" in normalized_phrase and "small" in normalized_phrase:
         ear_like_tokens = ("ear", "ears", "earbud", "earbuds", "cup", "cups")
         return "small" in normalized_content and any(token in normalized_content for token in ear_like_tokens)
+    if "fingerprint" in normalized_phrase and ("resistant" in normalized_phrase or "resist" in normalized_phrase):
+        fingerprint_like = ("fingerprint", "fingerprints")
+        resistance_like = ("resist", "resistant", "cleaner", "stay cleaner", "glides")
+        return any(token in normalized_content for token in fingerprint_like) and any(
+            token in normalized_content for token in resistance_like
+        )
+    if "customer service" in normalized_phrase or "customer support" in normalized_phrase:
+        service_like = ("customer service", "customer support")
+        complaint_like = (
+            "complain",
+            "complaint",
+            "issue",
+            "problem",
+            "poor",
+            "lousy",
+            "worst",
+            "broken english",
+            "insulted",
+            "couldn't find",
+            "could not find",
+            "no way",
+        )
+        return any(token in normalized_content for token in service_like) and any(
+            token in normalized_content for token in complaint_like
+        )
     stopwords = {"a", "an", "the", "and", "or", "about", "being", "is", "are", "with", "for", "they", "them"}
     phrase_tokens = [token for token in re.findall(r"[a-z0-9']+", normalized_phrase) if token not in stopwords]
     if len(phrase_tokens) < 2:
