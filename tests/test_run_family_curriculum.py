@@ -13,6 +13,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from scripts.run_family_curriculum import (
+    _write_training_progress_audits,
     _build_stage_args,
     _get_family_requirement_status,
     _get_group_int_overrides,
@@ -748,6 +749,51 @@ class RunFamilyCurriculumTests(unittest.TestCase):
         self.assertEqual(summary["warmup_plus_grpo"]["family_success_rate"], 1.0)
         self.assertEqual(summary["holdout"]["gain_vs_baseline"], 1.0)
         self.assertEqual(summary["holdout"]["gain_vs_warmup"], 1.0)
+
+    def test_write_training_progress_audits_writes_three_stage_reports(self) -> None:
+        split = TaskSplit(
+            family_name="shopping_exact",
+            task_ids=(101, 102, 103, 104),
+            warmup_task_ids=(101,),
+            grpo_task_ids=(102, 103),
+            holdout_task_ids=(104,),
+            eval_task_ids=(101, 102, 103, 104),
+            split_seed=42,
+        )
+        baseline_eval = {
+            "101": {"success_rate": 0.0},
+            "102": {"success_rate": 0.5},
+            "103": {"success_rate": 0.5},
+            "104": {"success_rate": 0.0},
+        }
+        eval_compare = {
+            "warmup_eval": {
+                "101": {"success_rate": 1.0},
+                "102": {"success_rate": 0.5},
+                "103": {"success_rate": 0.5},
+                "104": {"success_rate": 0.0},
+            },
+            "grpo_eval": {
+                "101": {"success_rate": 1.0},
+                "102": {"success_rate": 1.0},
+                "103": {"success_rate": 1.0},
+                "104": {"success_rate": 1.0},
+            },
+        }
+        summary = build_family_run_summary(split, baseline_eval, eval_compare)
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            out_dir = Path(tmp_dir)
+            written = _write_training_progress_audits(summary, out_dir)
+
+            self.assertEqual(
+                set(written),
+                {"baseline_vs_warmup", "baseline_vs_grpo", "warmup_vs_grpo"},
+            )
+            baseline_vs_grpo = json.loads((out_dir / "baseline_vs_grpo_audit.json").read_text(encoding="utf-8"))
+            self.assertEqual(baseline_vs_grpo["stage_a"], "baseline")
+            self.assertEqual(baseline_vs_grpo["stage_b"], "warmup_plus_grpo")
+            self.assertEqual(baseline_vs_grpo["task_progress"]["improved_task_ids"], [101, 102, 103, 104])
 
     def test_validate_family_requirements_rejects_full_family_without_openai_key(self) -> None:
         with mock.patch("scripts.run_family_curriculum.get_env_var", return_value=None):

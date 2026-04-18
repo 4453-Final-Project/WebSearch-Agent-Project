@@ -74,6 +74,7 @@ Use the existing BrowserGym/WebArena pipeline to improve a local model beyond it
 - next mixed-family scale-up path is ready too: `scripts/local/run_qwen_web_mix88_curriculum_qlora_tmux.sh` now launches the checked-in `web_mix88` split under the same detached `bnb_4bit` recipe, so a successful `bootstrap41` training signal can be promoted directly onto the 88-task mixed family
 - the matched mixed-family GitLab-coverage path is ready too: `scripts/local/run_qwen_web_mix88_curriculum_qlora_gitlabcoverage_tmux.sh` carries the same GitLab budget and coverage bump as `v16`, so the first mixed-family promotion can preserve the strongest current training recipe instead of resetting to the weaker mixed-family default
 - current warmup-demo cleanup: generic scripted warmup policies now answer directly instead of prepending a redundant `goto(start_url)`, which removes a recurring `TargetClosedError` step from simple dashboard-style demos and should reduce needless supervision noise on tasks like bootstrap task `0`
+- completed family runs now auto-write baseline/warmup/GRPO stage-audit artifacts, so future tuning can read per-task and per-site regressions directly from the output dir instead of reconstructing them later
 
 ## Scale-Up Target
 

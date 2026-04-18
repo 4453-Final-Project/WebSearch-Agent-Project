@@ -189,6 +189,7 @@ def main() -> int:
     family_summary["out_dir"] = str(out_dir)
     summary_path = out_dir / "family_summary.json"
     write_json_atomic(summary_path, family_summary)
+    audit_paths = _write_training_progress_audits(family_summary, out_dir)
 
     print(
         json.dumps(
@@ -198,6 +199,7 @@ def main() -> int:
                 "training_task_count": len(split.training_task_ids),
                 "holdout_task_count": len(split.holdout_task_ids),
                 "summary_path": str(summary_path),
+                "training_progress_audits": audit_paths,
                 "out_dir": str(out_dir),
             },
             indent=2,
@@ -757,6 +759,34 @@ def _mean_success_rate(values) -> float:
     if not values:
         return 0.0
     return sum(values) / len(values)
+
+
+def _write_training_progress_audits(
+    family_summary: dict[str, object],
+    out_dir: Path,
+) -> dict[str, str]:
+    from scripts.audit_family_training_progress import audit_family_training_progress  # noqa: E402
+
+    audit_specs = {
+        "baseline_vs_warmup": ("baseline", "warmup_only"),
+        "baseline_vs_grpo": ("baseline", "warmup_plus_grpo"),
+        "warmup_vs_grpo": ("warmup_only", "warmup_plus_grpo"),
+    }
+    written_paths: dict[str, str] = {}
+    for label, (stage_a, stage_b) in audit_specs.items():
+        errors, report = audit_family_training_progress(
+            family_summary,
+            stage_a=stage_a,
+            stage_b=stage_b,
+        )
+        if errors:
+            raise RuntimeError(
+                f"Unable to build training progress audit {label!r}: {'; '.join(errors)}"
+            )
+        audit_path = out_dir / f"{label}_audit.json"
+        write_json_atomic(audit_path, report)
+        written_paths[label] = str(audit_path)
+    return written_paths
 
 
 def _load_json(path: Path) -> dict[str, object]:
