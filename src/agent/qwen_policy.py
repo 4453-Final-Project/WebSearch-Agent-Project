@@ -372,6 +372,7 @@ class QwenPolicy:
         shopping_order_detail_action = _build_shopping_order_detail_retry_action(observation)
         shopping_order_answer_action = _build_shopping_order_answer_retry_action(observation)
         shopping_order_detail_answer_action = _build_shopping_order_detail_answer_retry_action(observation)
+        shopping_catalog_price_range_answer_action = _build_shopping_catalog_price_range_answer_action(observation)
         shopping_review_answer_action = _build_shopping_review_answer_retry_action(observation)
         shopping_review_action = _build_shopping_review_retry_action(observation)
         gitlab_commit_count_answer_action = _build_gitlab_commit_count_answer_action(observation)
@@ -388,6 +389,13 @@ class QwenPolicy:
                 return AgentDecision(
                     raw_text=decision.raw_text,
                     action_text=map_answer_action.split("ACTION:", 1)[1].strip(),
+                    parse_error=None,
+                    should_retry=False,
+                )
+            if shopping_catalog_price_range_answer_action:
+                return AgentDecision(
+                    raw_text=decision.raw_text,
+                    action_text=shopping_catalog_price_range_answer_action.split("ACTION:", 1)[1].strip(),
                     parse_error=None,
                     should_retry=False,
                 )
@@ -556,6 +564,14 @@ class QwenPolicy:
             return AgentDecision(
                 raw_text=decision.raw_text,
                 action_text=map_answer_action.split("ACTION:", 1)[1].strip(),
+                parse_error=None,
+                should_retry=False,
+            )
+
+        if shopping_catalog_price_range_answer_action and action_name != "send_msg_to_user":
+            return AgentDecision(
+                raw_text=decision.raw_text,
+                action_text=shopping_catalog_price_range_answer_action.split("ACTION:", 1)[1].strip(),
                 parse_error=None,
                 should_retry=False,
             )
@@ -1087,6 +1103,28 @@ class QwenPolicy:
         if (
             action_name == "send_msg_to_user"
             and arguments
+            and shopping_catalog_price_range_answer_action
+        ):
+            answer_text = _strip_quoted_string(arguments[0])
+            expected_price_range_answer = _extract_send_message_answer(shopping_catalog_price_range_answer_action)
+            if (
+                not answer_text
+                or _looks_like_placeholder_answer(answer_text)
+                or (
+                    expected_price_range_answer
+                    and not _answers_match_expected_value(answer_text, expected_price_range_answer)
+                )
+            ):
+                return AgentDecision(
+                    raw_text=decision.raw_text,
+                    action_text=shopping_catalog_price_range_answer_action.split("ACTION:", 1)[1].strip(),
+                    parse_error=None,
+                    should_retry=False,
+                )
+
+        if (
+            action_name == "send_msg_to_user"
+            and arguments
             and gitlab_commit_count_answer_action
         ):
             answer_text = _strip_quoted_string(arguments[0])
@@ -1597,6 +1635,24 @@ def _build_shopping_review_answer_retry_action(observation: NormalizedObservatio
     return f'ACTION: send_msg_to_user("{answer_text}")'
 
 
+def _build_shopping_catalog_price_range_answer_action(observation: NormalizedObservation) -> str:
+    parsed = urlparse(observation.current_url or "")
+    if not parsed.netloc.endswith(":7770"):
+        return ""
+    query = _extract_shopping_catalog_price_range_query(observation.goal)
+    if not query:
+        return ""
+    rows = _fetch_shopping_catalog_search_result_rows(observation.current_url, query)
+    if not rows:
+        return ""
+    prices = [_parse_amount(row.get("price", "")) for row in rows if row.get("price")]
+    prices = [value for value in prices if value > 0]
+    if not prices:
+        return ""
+    answer_text = f"{min(prices):.2f} - {max(prices):.2f}"
+    return f'ACTION: send_msg_to_user("{answer_text}")'
+
+
 def _build_gitlab_repo_graph_action(observation: NormalizedObservation) -> str:
     if not _is_gitlab_repo_page(observation.current_url):
         return ""
@@ -1699,6 +1755,44 @@ def _shopping_query_is_already_typed(dom_or_ax_snippet: str, query: str) -> bool
         if (option_match.group("name") or "").strip().lower() == lowered_query:
             return True
     return False
+
+
+def _extract_shopping_catalog_price_range_query(goal: str) -> str:
+    normalized_goal = " ".join((goal or "").split())
+    if not normalized_goal:
+        return ""
+    match = re.search(
+        r"price range of (?P<query>.+?) in the one stop market",
+        normalized_goal,
+        flags=re.IGNORECASE,
+    )
+    if match is None:
+        return ""
+    return " ".join(match.group("query").strip(" ?.!").split())
+
+
+def _fetch_shopping_catalog_search_result_rows(current_url: str, query: str) -> list[dict[str, str]]:
+    parsed = urlparse(current_url)
+    if not parsed.netloc.endswith(":7770"):
+        return []
+    base_url = f"{parsed.scheme or 'http'}://{parsed.netloc}"
+    search_url = f"{base_url}/catalogsearch/result/?{urlencode({'q': query})}"
+    search_html = _safe_fetch_text(search_url)
+    if not search_html:
+        return []
+    product_pattern = re.compile(
+        r'<a[^>]+class="[^"]*product-item-link[^"]*"[^>]*>(?P<title>.*?)</a>.*?'
+        r'<span[^>]+class="price"[^>]*>\s*\$?(?P<price>[0-9.,]+)\s*</span>',
+        flags=re.IGNORECASE | re.DOTALL,
+    )
+    rows: list[dict[str, str]] = []
+    for match in product_pattern.finditer(search_html):
+        title = _strip_html_fragment(match.group("title"))
+        price = " ".join((match.group("price") or "").split())
+        if not title or not price:
+            continue
+        rows.append({"title": title, "price": price})
+    return rows
 
 
 def _find_shopping_search_button_bid(dom_or_ax_snippet: str) -> str:

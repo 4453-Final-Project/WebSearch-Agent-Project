@@ -659,6 +659,66 @@ class QwenPolicyTests(unittest.TestCase):
         self.assertIsNone(decision.parse_error)
         self.assertEqual(len(backend.prompts), 1)
 
+    @patch("src.agent.qwen_policy.requests.get")
+    def test_shopping_catalog_price_range_goal_rewrites_parse_failure_to_direct_answer(self, mock_get) -> None:
+        mock_get.return_value = Mock(
+            ok=True,
+            text=(
+                '<a class="product-item-link">Canon Pixma iP3500 Photo Printer (2170B002)</a>'
+                '<span class="price">$184.99</span>'
+                '<a class="product-item-link">Canon PIXMA iP4920 Premium Inkjet Photo Printer (5287B002)</a>'
+                '<span class="price">$649.99</span>'
+                '<a class="product-item-link">Canon PIXMA MG2120 Color Photo Printer with Scanner and Copier</a>'
+                '<span class="price">$2.56</span>'
+            ),
+        )
+        observation = NormalizedObservation(
+            goal="What is the price range of Canon photo printer in the One Stop Market?",
+            current_url="http://3.14.148.71:7770/",
+            open_tabs=[OpenTab(title="One Stop Market", url="http://3.14.148.71:7770/")],
+            visible_page_summary="One Stop Market homepage",
+            dom_or_ax_snippet='[274] role=combobox name="Search" clickable\n[277] role=button name="Search"',
+            previous_actions=[],
+            previous_errors=[],
+        )
+        backend = FakeBackend(['ACTION: fill("Canon photo printer price range")'])
+        policy = QwenPolicy(backend=backend, config=self.config)
+
+        decision = policy.act(observation, step_idx=0)
+
+        self.assertEqual(decision.action_text, 'send_msg_to_user("2.56 - 649.99")')
+        self.assertIsNone(decision.parse_error)
+
+    @patch("src.agent.qwen_policy.requests.get")
+    def test_shopping_catalog_price_range_goal_rewrites_wrong_final_answer(self, mock_get) -> None:
+        mock_get.return_value = Mock(
+            ok=True,
+            text=(
+                '<a class="product-item-link">Canon Pixma iP3500 Photo Printer (2170B002)</a>'
+                '<span class="price">$184.99</span>'
+                '<a class="product-item-link">Canon PIXMA iP4920 Premium Inkjet Photo Printer (5287B002)</a>'
+                '<span class="price">$649.99</span>'
+                '<a class="product-item-link">Canon PIXMA MG2120 Color Photo Printer with Scanner and Copier</a>'
+                '<span class="price">$2.56</span>'
+            ),
+        )
+        observation = NormalizedObservation(
+            goal="What is the price range of Canon photo printer in the One Stop Market?",
+            current_url="http://3.14.148.71:7770/",
+            open_tabs=[OpenTab(title="One Stop Market", url="http://3.14.148.71:7770/")],
+            visible_page_summary="One Stop Market homepage",
+            dom_or_ax_snippet='[274] role=combobox name="Search" clickable\n[277] role=button name="Search"',
+            previous_actions=[],
+            previous_errors=[],
+        )
+        backend = FakeBackend(['ACTION: send_msg_to_user("N/A")'])
+        policy = QwenPolicy(backend=backend, config=self.config)
+
+        decision = policy.act(observation, step_idx=0)
+
+        self.assertEqual(decision.action_text, 'send_msg_to_user("2.56 - 649.99")')
+        self.assertIsNone(decision.parse_error)
+
     def test_reddit_repeated_searchbox_click_rewrites_to_forum_fill(self) -> None:
         observation = NormalizedObservation(
             goal=(
