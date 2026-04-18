@@ -104,6 +104,7 @@ class LocalLaunchersTests(unittest.TestCase):
         bootstrap41_qlora_gitlabcoverage_tmux = _read_local_script("run_qwen_bootstrap41_curriculum_qlora_gitlabcoverage_tmux.sh")
         bootstrap41_qlora_gitlabcoverage_cleandemos_tmux = _read_local_script("run_qwen_bootstrap41_curriculum_qlora_gitlabcoverage_cleandemos_tmux.sh")
         bootstrap41_qlora_gitlabcoverage_cleandemos_warmupoversample_tmux = _read_local_script("run_qwen_bootstrap41_curriculum_qlora_gitlabcoverage_cleandemos_warmupoversample_tmux.sh")
+        bootstrap41_qlora_gitlabcoverage_cleandemos_warmupoversample_yearfix_tmux = _read_local_script("run_qwen_bootstrap41_curriculum_qlora_gitlabcoverage_cleandemos_warmupoversample_yearfix_tmux.sh")
         bootstrap44_qlora_tmux = _read_local_script("run_qwen_bootstrap44_curriculum_qlora_tmux.sh")
         bootstrap44_qlora_gitlabcoverage_tmux = _read_local_script("run_qwen_bootstrap44_curriculum_qlora_gitlabcoverage_tmux.sh")
         bootstrap44_qlora_gitlabcoverage_cleandemos_warmupoversample_tmux = _read_local_script("run_qwen_bootstrap44_curriculum_qlora_gitlabcoverage_cleandemos_warmupoversample_tmux.sh")
@@ -193,6 +194,10 @@ class LocalLaunchersTests(unittest.TestCase):
         self.assertIn('TMUX_SESSION_NAME="${TMUX_SESSION_NAME:-qwen_bootstrap41_v18_qlora_gitlabcoverage_cleandemos_warmupoversample}"', bootstrap41_qlora_gitlabcoverage_cleandemos_warmupoversample_tmux)
         self.assertIn('--warmup-task-group-sample-multiplier site_gitlab=2.5', bootstrap41_qlora_gitlabcoverage_cleandemos_warmupoversample_tmux)
         self.assertIn('run_qwen_bootstrap41_curriculum_qlora_gitlabcoverage_cleandemos_tmux.sh', bootstrap41_qlora_gitlabcoverage_cleandemos_warmupoversample_tmux)
+
+        self.assertIn('RUN_OUT_DIR="${RUN_OUT_DIR:-$WORKSPACE_ROOT/outputs/qwen_bootstrap41_curriculum_v20_qlora_gitlabcoverage_cleandemos_warmupoversample_yearfix}"', bootstrap41_qlora_gitlabcoverage_cleandemos_warmupoversample_yearfix_tmux)
+        self.assertIn('TMUX_SESSION_NAME="${TMUX_SESSION_NAME:-qwen_bootstrap41_v20_qlora_gitlabcoverage_cleandemos_warmupoversample_yearfix}"', bootstrap41_qlora_gitlabcoverage_cleandemos_warmupoversample_yearfix_tmux)
+        self.assertIn('run_qwen_bootstrap41_curriculum_qlora_gitlabcoverage_cleandemos_warmupoversample_tmux.sh', bootstrap41_qlora_gitlabcoverage_cleandemos_warmupoversample_yearfix_tmux)
 
         self.assertIn('OUT_DIR="${RUN_OUT_DIR:-$WORKSPACE_ROOT/outputs/qwen_bootstrap44_curriculum_v1_qlora}"', bootstrap44_qlora_tmux)
         self.assertIn('SESSION_NAME="${TMUX_SESSION_NAME:-qwen_bootstrap44_v1_qlora}"', bootstrap44_qlora_tmux)
