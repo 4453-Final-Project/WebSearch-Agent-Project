@@ -85,6 +85,17 @@ class LiveFamilyRunStatusTests(unittest.TestCase):
                 "run_branch": None,
             },
         )
+        self.assertIsInstance(status["current_repo_provenance"], dict)
+        self.assertIn("repo_head_commit", status["current_repo_provenance"])
+        self.assertIn("repo_head_branch", status["current_repo_provenance"])
+        self.assertEqual(
+            status["run_repo_alignment"],
+            {
+                "run_matches_current_repo_commit": None,
+                "run_matches_current_repo_branch": None,
+                "run_is_stale_vs_current_repo": None,
+            },
+        )
         self.assertEqual(
             status["tmux_session"],
             {
@@ -395,6 +406,10 @@ class LiveFamilyRunStatusTests(unittest.TestCase):
                 "run_branch": "further-improvements",
             },
         )
+        self.assertIsInstance(status["current_repo_provenance"], dict)
+        self.assertIn("run_matches_current_repo_commit", status["run_repo_alignment"])
+        self.assertIn("run_matches_current_repo_branch", status["run_repo_alignment"])
+        self.assertIn("run_is_stale_vs_current_repo", status["run_repo_alignment"])
 
     def test_falls_back_to_legacy_run_log_when_stdout_log_missing(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -489,17 +504,26 @@ class LiveFamilyRunStatusTests(unittest.TestCase):
     def test_falls_back_to_process_scan_when_saved_pid_is_stale(self, mock_run: mock.Mock) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             out_dir = Path(tmp_dir)
-            mock_run.side_effect = [
-                mock.Mock(returncode=1, stdout=""),
-                mock.Mock(
-                    returncode=0,
-                    stdout=(
-                        "tyler 401234 1 0 00:00 ? "
-                        "python -u scripts/run_family_curriculum.py --family shopping_full "
-                        f"--out-dir {_to_wsl_path(out_dir)}\n"
-                    ),
-                ),
-            ]
+            def _fake_run(command, capture_output=True, text=True, check=False, timeout=5):
+                command_text = " ".join(command)
+                if "ps -p 390934" in command_text:
+                    return mock.Mock(returncode=1, stdout="")
+                if "ps -ef" in command_text:
+                    return mock.Mock(
+                        returncode=0,
+                        stdout=(
+                            "tyler 401234 1 0 00:00 ? "
+                            "python -u scripts/run_family_curriculum.py --family shopping_full "
+                            f"--out-dir {_to_wsl_path(out_dir)}\n"
+                        ),
+                    )
+                if "rev-parse HEAD" in command_text:
+                    return mock.Mock(returncode=0, stdout="8903ecd65eba655d7f155a9a1077ec04b354cedd\n")
+                if "rev-parse --abbrev-ref HEAD" in command_text:
+                    return mock.Mock(returncode=0, stdout="further-improvements\n")
+                raise AssertionError(f"Unexpected command: {command_text}")
+
+            mock_run.side_effect = _fake_run
             (out_dir / "run.pid").write_text("390934\n", encoding="utf-8")
             (out_dir / "split_manifest.json").write_text(
                 json.dumps(

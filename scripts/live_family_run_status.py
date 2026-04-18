@@ -312,6 +312,58 @@ def _summarize_run_provenance(*, commit_path: Path, branch_path: Path) -> dict[s
     }
 
 
+def _read_current_repo_provenance(repo_root: Path) -> dict[str, object]:
+    try:
+        head_completed = subprocess.run(
+            ["git", "-C", str(repo_root), "rev-parse", "HEAD"],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=5,
+        )
+        branch_completed = subprocess.run(
+            ["git", "-C", str(repo_root), "rev-parse", "--abbrev-ref", "HEAD"],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=5,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return {
+            "repo_head_commit": None,
+            "repo_head_branch": None,
+            "head_readable": False,
+            "branch_readable": False,
+        }
+
+    head = (head_completed.stdout or "").strip() or None
+    branch = (branch_completed.stdout or "").strip() or None
+    return {
+        "repo_head_commit": head if head_completed.returncode == 0 else None,
+        "repo_head_branch": branch if branch_completed.returncode == 0 else None,
+        "head_readable": head_completed.returncode == 0,
+        "branch_readable": branch_completed.returncode == 0,
+    }
+
+
+def _compare_run_to_current_repo(
+    *,
+    run_provenance: dict[str, object],
+    current_repo_provenance: dict[str, object],
+) -> dict[str, object]:
+    run_commit = run_provenance.get("run_commit")
+    run_branch = run_provenance.get("run_branch")
+    repo_commit = current_repo_provenance.get("repo_head_commit")
+    repo_branch = current_repo_provenance.get("repo_head_branch")
+    commit_match = isinstance(run_commit, str) and isinstance(repo_commit, str) and run_commit == repo_commit
+    branch_match = isinstance(run_branch, str) and isinstance(repo_branch, str) and run_branch == repo_branch
+    return {
+        "run_matches_current_repo_commit": commit_match if run_commit and repo_commit else None,
+        "run_matches_current_repo_branch": branch_match if run_branch and repo_branch else None,
+        "run_is_stale_vs_current_repo": (not commit_match) if run_commit and repo_commit else None,
+    }
+
+
 def _summarize_latest_activity(
     out_dir: Path,
     *,
@@ -707,6 +759,11 @@ def build_live_family_run_status(out_dir: Path) -> dict[str, object]:
         family_name=family_name,
         split_preview=split_preview,
     )
+    run_provenance = _summarize_run_provenance(
+        commit_path=run_commit_path,
+        branch_path=run_branch_path,
+    )
+    current_repo_provenance = _read_current_repo_provenance(REPO_ROOT)
 
     if family_summary_path.exists():
         current_stage = "complete"
@@ -746,9 +803,11 @@ def build_live_family_run_status(out_dir: Path) -> dict[str, object]:
             family_name=family_name,
             out_dir=out_dir,
         ),
-        "run_provenance": _summarize_run_provenance(
-            commit_path=run_commit_path,
-            branch_path=run_branch_path,
+        "run_provenance": run_provenance,
+        "current_repo_provenance": current_repo_provenance,
+        "run_repo_alignment": _compare_run_to_current_repo(
+            run_provenance=run_provenance,
+            current_repo_provenance=current_repo_provenance,
         ),
         "tmux_session": _summarize_tmux_session(tmux_session_path),
         "run_stdout_log": _summarize_log_tail(run_stdout_log_path),
