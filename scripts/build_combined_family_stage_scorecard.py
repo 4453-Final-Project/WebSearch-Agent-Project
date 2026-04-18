@@ -14,7 +14,9 @@ from scripts.build_family_override_summary import _load_run_provenance  # noqa: 
 from scripts.json_io import write_json_atomic  # noqa: E402
 from scripts.merge_family_reevals import load_json  # noqa: E402
 from scripts.run_family_curriculum import _build_family_metadata, _build_stage_summary, _load_split_from_manifest  # noqa: E402
-from scripts.validate_family_summary import validate_family_summary  # noqa: E402
+from scripts.validate_combined_family_stage_scorecard import (  # noqa: E402
+    validate_combined_family_stage_scorecard as _validate_combined_family_stage_scorecard,
+)
 from src.training.task_families import get_family_task_groups  # noqa: E402
 
 
@@ -226,7 +228,7 @@ def validate_combined_family_stage_scorecard(
     *,
     benchmark_blockers: list[str] | tuple[str, ...] = (),
 ) -> tuple[list[str], dict[str, object]]:
-    return validate_family_summary(scorecard, benchmark_blockers=benchmark_blockers)
+    return _validate_combined_family_stage_scorecard(scorecard, benchmark_blockers=benchmark_blockers)
 
 
 def main() -> int:
