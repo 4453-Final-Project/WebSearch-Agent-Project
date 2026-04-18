@@ -77,6 +77,15 @@ class LiveFamilyRunStatusTests(unittest.TestCase):
             },
         )
         self.assertEqual(
+            status["run_provenance"],
+            {
+                "commit_path_present": False,
+                "branch_path_present": False,
+                "run_commit": None,
+                "run_branch": None,
+            },
+        )
+        self.assertEqual(
             status["tmux_session"],
             {
                 "session_name_present": False,
@@ -369,6 +378,24 @@ class LiveFamilyRunStatusTests(unittest.TestCase):
         self.assertEqual(status["run_stderr_log"]["last_nonempty_line"], "warn 2")
         self.assertEqual(status["run_stderr_log"]["last_lines"], ["warn 1", "", "warn 2"])
 
+    def test_reports_run_provenance_when_present(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            out_dir = Path(tmp_dir)
+            (out_dir / "run_commit.txt").write_text("8903ecd65eba655d7f155a9a1077ec04b354cedd\n", encoding="utf-8")
+            (out_dir / "run_branch.txt").write_text("further-improvements\n", encoding="utf-8")
+
+            status = build_live_family_run_status(out_dir)
+
+        self.assertEqual(
+            status["run_provenance"],
+            {
+                "commit_path_present": True,
+                "branch_path_present": True,
+                "run_commit": "8903ecd65eba655d7f155a9a1077ec04b354cedd",
+                "run_branch": "further-improvements",
+            },
+        )
+
     def test_falls_back_to_legacy_run_log_when_stdout_log_missing(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             out_dir = Path(tmp_dir)
@@ -406,6 +433,8 @@ class LiveFamilyRunStatusTests(unittest.TestCase):
                 out_dir / "live_status.json",
                 out_dir / "run.pid",
                 out_dir / "tmux_session.txt",
+                out_dir / "run_commit.txt",
+                out_dir / "run_branch.txt",
             ]
             artifact.write_text("{}", encoding="utf-8")
             artifact_stat = artifact.stat()
@@ -420,6 +449,8 @@ class LiveFamilyRunStatusTests(unittest.TestCase):
             latest_activity_path.endswith("live_status.json")
             or latest_activity_path.endswith("run.pid")
             or latest_activity_path.endswith("tmux_session.txt")
+            or latest_activity_path.endswith("run_commit.txt")
+            or latest_activity_path.endswith("run_branch.txt")
         )
         self.assertTrue(str(status["latest_non_monitoring_activity"]["path"]).endswith("summary.json"))
 

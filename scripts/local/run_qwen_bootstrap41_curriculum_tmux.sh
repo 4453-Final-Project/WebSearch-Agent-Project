@@ -17,6 +17,8 @@ LOG_PATH="$OUT_DIR/run.log"
 ERR_PATH="$OUT_DIR/run.stderr.log"
 TMUX_SESSION_PATH="$OUT_DIR/tmux_session.txt"
 RUN_PID_PATH="$OUT_DIR/run.pid"
+RUN_COMMIT_PATH="$OUT_DIR/run_commit.txt"
+RUN_BRANCH_PATH="$OUT_DIR/run_branch.txt"
 
 cat >"$RUNNER_SCRIPT" <<EOF
 #!/usr/bin/env bash
@@ -62,6 +64,9 @@ exec python3 -u scripts/run_family_curriculum.py \\
 EOF
 
 chmod +x "$RUNNER_SCRIPT"
+
+git -C "$REPO_ROOT" rev-parse HEAD >"$RUN_COMMIT_PATH"
+git -C "$REPO_ROOT" rev-parse --abbrev-ref HEAD >"$RUN_BRANCH_PATH"
 
 if tmux has-session -t "$SESSION_NAME" 2>/dev/null; then
   tmux kill-session -t "$SESSION_NAME"

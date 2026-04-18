@@ -22,6 +22,8 @@ NON_MONITORING_METADATA_FILENAMES = {
     "live_status.json",
     "run.pid",
     "tmux_session.txt",
+    "run_commit.txt",
+    "run_branch.txt",
 }
 
 
@@ -290,6 +292,23 @@ def _summarize_tmux_session(tmux_session_path: Path) -> dict[str, object]:
         "probe_output": output,
         "pane_pid": pane_pid,
         "pane_command": pane_command,
+    }
+
+
+def _summarize_run_provenance(*, commit_path: Path, branch_path: Path) -> dict[str, object]:
+    commit = None
+    branch = None
+    if commit_path.exists():
+        raw_commit = commit_path.read_text(encoding="utf-8").strip()
+        commit = raw_commit or None
+    if branch_path.exists():
+        raw_branch = branch_path.read_text(encoding="utf-8").strip()
+        branch = raw_branch or None
+    return {
+        "commit_path_present": commit_path.exists(),
+        "branch_path_present": branch_path.exists(),
+        "run_commit": commit,
+        "run_branch": branch,
     }
 
 
@@ -618,6 +637,8 @@ def build_live_family_run_status(out_dir: Path) -> dict[str, object]:
     split_manifest_path = out_dir / "split_manifest.json"
     run_pid_path = out_dir / "run.pid"
     tmux_session_path = out_dir / "tmux_session.txt"
+    run_commit_path = out_dir / "run_commit.txt"
+    run_branch_path = out_dir / "run_branch.txt"
     run_stdout_log_path = out_dir / "run.stdout.log"
     if not run_stdout_log_path.exists():
         legacy_run_stdout_log_path = out_dir / "run.log"
@@ -724,6 +745,10 @@ def build_live_family_run_status(out_dir: Path) -> dict[str, object]:
             run_pid_path,
             family_name=family_name,
             out_dir=out_dir,
+        ),
+        "run_provenance": _summarize_run_provenance(
+            commit_path=run_commit_path,
+            branch_path=run_branch_path,
         ),
         "tmux_session": _summarize_tmux_session(tmux_session_path),
         "run_stdout_log": _summarize_log_tail(run_stdout_log_path),
