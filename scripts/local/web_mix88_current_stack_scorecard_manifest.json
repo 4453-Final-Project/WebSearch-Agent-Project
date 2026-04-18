@@ -1,0 +1,22 @@
+{
+  "combined_split_manifest": "web_mix88_curriculum_manifest.json",
+  "label": "current_stack",
+  "benchmark_blockers": [
+    "124",
+    "133",
+    "141",
+    "204"
+  ],
+  "sources": {
+    "bootstrap41_current_stack": {
+      "summary": "../../../outputs/bootstrap41_current_stack_summary.json",
+      "stage": "current_stack"
+    },
+    "shopping_full_current_stack": {
+      "summary": "../../../outputs/qwen_shopping_full_current_stack_summary.json",
+      "stage": "current_stack"
+    }
+  },
+  "out": "../../../outputs/web_mix88_current_stack_scorecard.json",
+  "audit_out": "../../../outputs/web_mix88_current_stack_audit.json"
+}

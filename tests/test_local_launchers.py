@@ -332,6 +332,8 @@ class LocalLaunchersTests(unittest.TestCase):
             "refresh_shopping_order_full_curriculum_preflight.ps1",
             "refresh_shopping_order_full_curriculum_manifest.sh",
             "refresh_shopping_order_full_curriculum_manifest.ps1",
+            "refresh_web_mix88_current_stack_scorecard.sh",
+            "refresh_web_mix88_current_stack_scorecard.ps1",
             "refresh_web_mix88_curriculum_manifest.sh",
             "refresh_web_mix88_curriculum_manifest.ps1",
             "refresh_web_mix91_curriculum_manifest.sh",
@@ -407,6 +409,14 @@ class LocalLaunchersTests(unittest.TestCase):
         for script in (bash_script, powershell_script):
             self.assertIn("build_combined_family_stage_scorecard.py", script)
             self.assertIn("web_mix91_current_stack_scorecard_manifest.json", script)
+
+    def test_web_mix88_current_stack_refresh_wrappers_use_checked_in_manifest(self) -> None:
+        bash_script = _read_local_script("refresh_web_mix88_current_stack_scorecard.sh")
+        powershell_script = _read_local_script("refresh_web_mix88_current_stack_scorecard.ps1")
+
+        for script in (bash_script, powershell_script):
+            self.assertIn("build_combined_family_stage_scorecard.py", script)
+            self.assertIn("web_mix88_current_stack_scorecard_manifest.json", script)
 
     def test_order_family_refresh_wrappers_use_checked_in_outputs(self) -> None:
         shopping_order_bash = _read_local_script("refresh_shopping_order_curriculum_manifest.sh")
