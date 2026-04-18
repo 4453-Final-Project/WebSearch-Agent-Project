@@ -3641,10 +3641,12 @@ def _derive_admin_dashboard_bestseller_answer(goal: str, visible_page_summary: s
     aggregated_report_rows = _aggregate_admin_bestseller_products(report_rows)
     if aggregated_report_rows:
         return _derive_admin_bestseller_answer_from_rows(goal, aggregated_report_rows)
+    aggregate_rows = _extract_admin_bestseller_aggregate_rows(visible_page_summary)
+    if _goal_mentions_specific_month(lowered) and aggregate_rows:
+        return _derive_admin_bestseller_answer_from_rows(goal, aggregate_rows)
     rows = _extract_admin_dashboard_bestseller_rows(visible_page_summary)
     if rows:
         return _derive_admin_bestseller_answer_from_rows(goal, rows)
-    aggregate_rows = _extract_admin_bestseller_aggregate_rows(visible_page_summary)
     if aggregate_rows:
         return _derive_admin_bestseller_answer_from_rows(goal, aggregate_rows)
     return ""
@@ -3679,6 +3681,15 @@ def _derive_top_count(goal: str) -> int | None:
     if match:
         return int(match.group(1))
     return None
+
+
+def _goal_mentions_specific_month(lowered_goal: str) -> bool:
+    return bool(
+        re.search(
+            r"\b(january|jan|february|feb|march|mar|april|apr|may|june|jun|july|jul|august|aug|september|sept|sep|october|oct|november|nov|december|dec)\b",
+            lowered_goal,
+        )
+    )
 
 
 def _extract_admin_dashboard_bestseller_rows(visible_page_summary: str) -> list[dict[str, str]]:

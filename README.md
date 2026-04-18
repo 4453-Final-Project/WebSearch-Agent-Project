@@ -50,12 +50,12 @@ Latest larger-family signal on the executable `shopping_exact` curriculum:
 - `outputs/qwen_bootstrap41_curriculum_v3_mapfix/` is also complete with baseline, warmup-only, and warmup + GRPO all flat at `12/41`, which is the clearest current evidence that the previous warmup/GRPO sample weighting was too diffuse on the broader cross-site family
 - both warmup and GRPO now use step-aware sample weighting that emphasizes later clean steps and successful terminal answer steps while downweighting invalid or parse-failed steps
 - those step-aware sample-weight knobs are now exposed on the staged and family runners too, so cross-site reruns can tune terminal-step emphasis and error-step downweighting from the CLI instead of requiring another source edit
+- stale quantized step-weight comparison note: `outputs/qwen_bootstrap41_curriculum_v12_qlora_stepweight_redditfix/` started before the month-specific January admin bestseller precedence fix landed for tasks `4` and `5`, so it is now mainly a pre-admin-bestseller-fix comparison point
+- current quantized step-weight comparison rerun to watch: `outputs/qwen_bootstrap41_curriculum_v13_qlora_stepweight_adminbestsellerfix/`, which reuses the same checked-in `bootstrap41` split and `bnb_4bit` step-weight recipe on the latest catalog-plus-spend-plus-Reddit stack plus the January admin bestseller-source fix
 - the optional local quantized path is now wired too: `outputs/qwen_shopping_full_warmup_smoke_v2_qlora/` completed a real `bnb_4bit` warmup smoke on the WSL GPU stack
 - current quantized bootstrap baseline rerun to watch: `outputs/qwen_bootstrap41_curriculum_v6_qlora/`
 - stale quantized step-weight note: `outputs/qwen_bootstrap41_curriculum_v9_qlora_stepweight_dashboardfix/` started before the task-`41` popularity fix and is now mainly a pre-searchterm-fix comparison point
 - stale quantized step-weight note: `outputs/qwen_bootstrap41_curriculum_v11_qlora_stepweight_catalogfix/` also started before the task-`29` Reddit fix landed in the stack, so it is now mainly a pre-Reddit-fix comparison point
-- current quantized step-weight comparison rerun to watch: `outputs/qwen_bootstrap41_curriculum_v12_qlora_stepweight_redditfix/`, which reuses the same checked-in `bootstrap41` split and `bnb_4bit` step-weight recipe on the latest catalog-plus-spend-plus-Reddit stack
-- current quantized step-weight rerun to watch: `outputs/qwen_bootstrap41_curriculum_v11_qlora_stepweight_catalogfix/`, launched on the same checked-in `bootstrap41` split and `bnb_4bit` recipe as the earlier step-weight comparisons and now already in baseline evaluation on the latest catalog-plus-spend stack
 
 The repo now also supports larger scripted curricula so we can scale past tiny slices:
 

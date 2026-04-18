@@ -2356,6 +2356,39 @@ class QwenPolicyTests(unittest.TestCase):
         )
         self.assertIsNone(decision.parse_error)
 
+    def test_shopping_admin_dashboard_prefers_aggregate_rows_for_month_specific_bestsellers_without_report_rows(self) -> None:
+        observation = NormalizedObservation(
+            goal="What are the top-3 best-selling product in Jan 2023",
+            current_url="http://3.14.148.71:7780/admin/admin/dashboard/",
+            open_tabs=[
+                OpenTab(
+                    title="Dashboard / Magento Admin",
+                    url="http://3.14.148.71:7780/admin/admin/dashboard/",
+                )
+            ],
+            visible_page_summary=(
+                "Dashboard bestseller row: rank=1 | product=Quest Lumaflex™ Band | price=19.00 | quantity=6\n"
+                "Dashboard bestseller row: rank=2 | product=Sprite Stasis Ball 65 cm | price=27.00 | quantity=6\n"
+                "Dashboard bestseller row: rank=3 | product=Sprite Yoga Strap 6 foot | price=14.00 | quantity=6\n"
+                "Admin bestseller aggregate row: rank=1 | product=Overnight Duffle | quantity=2\n"
+                "Admin bestseller aggregate row: rank=2 | product=Impulse Duffle | quantity=2\n"
+                "Admin bestseller aggregate row: rank=3 | product=Hawkeye Yoga Short-32-Blue | quantity=2"
+            ),
+            dom_or_ax_snippet='[687] role=textbox name="Search" clickable',
+            previous_actions=[],
+            previous_errors=[],
+        )
+        backend = FakeBackend(['ACTION: fill("Quest Lumaflex", "687")'])
+        policy = QwenPolicy(backend=backend, config=self.config)
+
+        decision = policy.act(observation, step_idx=0)
+
+        self.assertEqual(
+            decision.action_text,
+            'send_msg_to_user("Overnight Duffle, Impulse Duffle, Hawkeye Yoga Short-32-Blue")',
+        )
+        self.assertIsNone(decision.parse_error)
+
     def test_shopping_admin_dashboard_answers_top_search_terms_from_appended_rows(self) -> None:
         observation = NormalizedObservation(
             goal="List the top 1 search terms in my store",
@@ -2453,6 +2486,35 @@ class QwenPolicyTests(unittest.TestCase):
             previous_errors=[],
         )
         backend = FakeBackend(['ACTION: fill("Duffle", "687")'])
+        policy = QwenPolicy(backend=backend, config=self.config)
+
+        decision = policy.act(observation, step_idx=0)
+
+        self.assertEqual(decision.action_text, 'send_msg_to_user("Duffle")')
+        self.assertIsNone(decision.parse_error)
+
+    def test_shopping_admin_dashboard_prefers_aggregate_rows_for_month_specific_product_type_without_report_rows(self) -> None:
+        observation = NormalizedObservation(
+            goal="What is the top-1 best-selling product type in Jan 2023",
+            current_url="http://3.14.148.71:7780/admin/admin/dashboard/",
+            open_tabs=[
+                OpenTab(
+                    title="Dashboard / Magento Admin",
+                    url="http://3.14.148.71:7780/admin/admin/dashboard/",
+                )
+            ],
+            visible_page_summary=(
+                "Dashboard bestseller row: rank=1 | product=Quest Lumaflex™ Band | price=19.00 | quantity=6\n"
+                "Dashboard bestseller row: rank=2 | product=Sprite Stasis Ball 65 cm | price=27.00 | quantity=6\n"
+                "Admin bestseller aggregate row: rank=1 | product=Overnight Duffle | quantity=2\n"
+                "Admin bestseller aggregate row: rank=2 | product=Impulse Duffle | quantity=2\n"
+                "Admin bestseller aggregate row: rank=3 | product=Hawkeye Yoga Short-32-Blue | quantity=2"
+            ),
+            dom_or_ax_snippet='[687] role=textbox name="Search" clickable',
+            previous_actions=[],
+            previous_errors=[],
+        )
+        backend = FakeBackend(['ACTION: fill("top-1 best-selling product type in Jan 2023", "687")'])
         policy = QwenPolicy(backend=backend, config=self.config)
 
         decision = policy.act(observation, step_idx=0)
