@@ -70,6 +70,8 @@ class LocalLaunchersTests(unittest.TestCase):
         self.assertIn("tmux new-session -d -s", shopping_full_tmux)
         self.assertIn("printf '%s\\n' \"$SESSION_NAME\" >\"$TMUX_SESSION_PATH\"", shopping_full_tmux)
         self.assertIn("tmux list-panes -t \"$SESSION_NAME\" -F '#{pane_pid}' | head -n 1 >\"$RUN_PID_PATH\"", shopping_full_tmux)
+        self.assertIn("export PYTHONUNBUFFERED=1", shopping_full_tmux)
+        self.assertIn("exec python3 -u scripts/run_family_curriculum.py", shopping_full_tmux)
 
         self.assertIn('OUT_DIR="${RUN_OUT_DIR:-$WORKSPACE_ROOT/outputs/qwen_bootstrap41_curriculum_v1}"', bootstrap41_tmux)
         self.assertIn('TMUX_SESSION_PATH="$OUT_DIR/tmux_session.txt"', bootstrap41_tmux)
@@ -80,6 +82,8 @@ class LocalLaunchersTests(unittest.TestCase):
         self.assertIn("tmux new-session -d -s", bootstrap41_tmux)
         self.assertIn("printf '%s\\n' \"$SESSION_NAME\" >\"$TMUX_SESSION_PATH\"", bootstrap41_tmux)
         self.assertIn("tmux list-panes -t \"$SESSION_NAME\" -F '#{pane_pid}' | head -n 1 >\"$RUN_PID_PATH\"", bootstrap41_tmux)
+        self.assertIn("export PYTHONUNBUFFERED=1", bootstrap41_tmux)
+        self.assertIn("exec python3 -u scripts/run_family_curriculum.py", bootstrap41_tmux)
 
         self.assertIn('RUN_OUT_DIR="${RUN_OUT_DIR:-$WORKSPACE_ROOT/outputs/qwen_bootstrap41_curriculum_v6_qlora}"', bootstrap41_qlora_tmux)
         self.assertIn('TMUX_SESSION_NAME="${TMUX_SESSION_NAME:-qwen_bootstrap41_v6_qlora}"', bootstrap41_qlora_tmux)

@@ -31,7 +31,8 @@ if [[ -f "$REPO_ROOT/scripts/webarena_env.local.sh" ]]; then
   # shellcheck disable=SC1091
   source "$REPO_ROOT/scripts/webarena_env.local.sh"
 fi
-exec python3 scripts/run_family_curriculum.py \\
+export PYTHONUNBUFFERED=1
+exec python3 -u scripts/run_family_curriculum.py \\
   --family bootstrap41 \\
   --model-dir-name Qwen3.5-2B \\
   --warmup-demo-episodes 2 \\
