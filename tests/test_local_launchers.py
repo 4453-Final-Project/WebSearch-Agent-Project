@@ -332,12 +332,16 @@ class LocalLaunchersTests(unittest.TestCase):
             "validate_bootstrap44_current_stack_scorecard.ps1",
             "refresh_shopping_order_current_stack_scorecard.sh",
             "refresh_shopping_order_current_stack_scorecard.ps1",
+            "validate_shopping_order_current_stack_scorecard.sh",
+            "validate_shopping_order_current_stack_scorecard.ps1",
             "refresh_shopping_order_curriculum_preflight.sh",
             "refresh_shopping_order_curriculum_preflight.ps1",
             "refresh_shopping_order_curriculum_manifest.sh",
             "refresh_shopping_order_curriculum_manifest.ps1",
             "refresh_shopping_order_full_current_stack_scorecard.sh",
             "refresh_shopping_order_full_current_stack_scorecard.ps1",
+            "validate_shopping_order_full_current_stack_scorecard.sh",
+            "validate_shopping_order_full_current_stack_scorecard.ps1",
             "refresh_shopping_order_full_curriculum_preflight.sh",
             "refresh_shopping_order_full_curriculum_preflight.ps1",
             "refresh_shopping_order_full_curriculum_manifest.sh",
@@ -398,6 +402,22 @@ class LocalLaunchersTests(unittest.TestCase):
         for script in (shopping_order_full_bash, shopping_order_full_powershell):
             self.assertIn("build_subset_family_stage_scorecard.py", script)
             self.assertIn("shopping_order_full_current_stack_scorecard_manifest.json", script)
+
+    def test_order_current_stack_validation_wrappers_use_checked_in_scorecards(self) -> None:
+        shopping_order_bash = _read_local_script("validate_shopping_order_current_stack_scorecard.sh")
+        shopping_order_powershell = _read_local_script("validate_shopping_order_current_stack_scorecard.ps1")
+        shopping_order_full_bash = _read_local_script("validate_shopping_order_full_current_stack_scorecard.sh")
+        shopping_order_full_powershell = _read_local_script("validate_shopping_order_full_current_stack_scorecard.ps1")
+
+        for script in (shopping_order_bash, shopping_order_powershell):
+            self.assertIn("validate_subset_family_stage_scorecard.py", script)
+            self.assertIn("shopping_order_current_stack_scorecard.json", script)
+            self.assertIn("131", script)
+
+        for script in (shopping_order_full_bash, shopping_order_full_powershell):
+            self.assertIn("validate_subset_family_stage_scorecard.py", script)
+            self.assertIn("shopping_order_full_current_stack_scorecard.json", script)
+            self.assertIn("204", script)
 
     def test_order_preflight_refresh_wrappers_use_checked_in_inputs(self) -> None:
         shopping_order_bash = _read_local_script("refresh_shopping_order_curriculum_preflight.sh")
