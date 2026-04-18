@@ -1,0 +1,11 @@
+{
+  "subset_split_manifest": "shopping_order_full_curriculum_manifest.json",
+  "source_summary": "../../../outputs/qwen_shopping_full_current_stack_summary.json",
+  "source_stage": "current_stack",
+  "label": "current_stack",
+  "benchmark_blockers": [
+    204
+  ],
+  "out": "../../../outputs/shopping_order_full_current_stack_scorecard.json",
+  "audit_out": "../../../outputs/shopping_order_full_current_stack_audit.json"
+}

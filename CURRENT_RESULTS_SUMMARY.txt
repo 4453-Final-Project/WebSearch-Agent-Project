@@ -19,6 +19,8 @@ Current shopping_exact stack score
 
 Current broader shopping stack
 - Current shopping_full stack: 47/48
+- Current shopping_order score: 26/27 = 0.962963
+- Current shopping_order_full score: 42/43 = 0.976744
 
 Current cross-site bootstrap stack
 - Baseline bootstrap41 score: 12/41 = 0.292683
