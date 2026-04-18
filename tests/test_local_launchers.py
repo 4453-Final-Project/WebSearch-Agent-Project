@@ -256,6 +256,8 @@ class LocalLaunchersTests(unittest.TestCase):
             "refresh_shopping_exact_curriculum_manifest.ps1",
             "refresh_shopping_full_curriculum_manifest.sh",
             "refresh_shopping_full_curriculum_manifest.ps1",
+            "refresh_qwen_shopping_full_current_stack.sh",
+            "refresh_qwen_shopping_full_current_stack.ps1",
             "refresh_bootstrap41_curriculum_manifest.sh",
             "refresh_bootstrap41_curriculum_manifest.ps1",
             "refresh_bootstrap44_curriculum_manifest.sh",
@@ -266,6 +268,8 @@ class LocalLaunchersTests(unittest.TestCase):
             "refresh_web_mix88_curriculum_manifest.ps1",
             "refresh_web_mix91_curriculum_manifest.sh",
             "refresh_web_mix91_curriculum_manifest.ps1",
+            "refresh_web_mix91_current_stack_scorecard.sh",
+            "refresh_web_mix91_current_stack_scorecard.ps1",
         )
 
         for filename in expected_files:
@@ -285,6 +289,23 @@ class LocalLaunchersTests(unittest.TestCase):
             self.assertIn("bootstrap44_current_stack_scorecard.json", script)
             self.assertIn("bootstrap44_current_stack_audit.json", script)
             self.assertIn("--audit-out", script)
+
+    def test_shopping_full_current_stack_refresh_wrappers_use_checked_in_manifest(self) -> None:
+        bash_script = _read_local_script("refresh_qwen_shopping_full_current_stack.sh")
+        powershell_script = _read_local_script("refresh_qwen_shopping_full_current_stack.ps1")
+
+        for script in (bash_script, powershell_script):
+            self.assertIn("refresh_family_current_stack.py", script)
+            self.assertIn("qwen_shopping_full_current_stack_manifest.json", script)
+
+    def test_web_mix91_current_stack_refresh_wrappers_use_checked_in_manifest(self) -> None:
+        bash_script = _read_local_script("refresh_web_mix91_current_stack_scorecard.sh")
+        powershell_script = _read_local_script("refresh_web_mix91_current_stack_scorecard.ps1")
+
+        for script in (bash_script, powershell_script):
+            self.assertIn("build_combined_family_stage_scorecard.py", script)
+            self.assertIn("web_mix91_current_stack_scorecard_manifest.json", script)
+
 
 
 if __name__ == "__main__":

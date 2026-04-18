@@ -1,0 +1,25 @@
+{
+  "base_summary": "../../../outputs/qwen_shopping_full_curriculum_v4_devicefix/family_summary.json",
+  "base_stage": "baseline",
+  "label": "current_stack",
+  "benchmark_blockers": [
+    "204"
+  ],
+  "summary_out": "../../../outputs/qwen_shopping_full_current_stack_summary.json",
+  "compare_report_out": "../../../outputs/shopping_full_qwen_base_vs_current_stack_compare.json",
+  "compare_base_stage": "baseline",
+  "compare_label_a": "base",
+  "compare_label_b": "current_stack",
+  "overrides": {
+    "203": "../../../outputs/eval_task_203_warmup_current_v2/metrics.json",
+    "204": "../../../outputs/eval_task_204_warmup_batch_current_v2/metrics.json",
+    "319": "../../../outputs/eval_task_319_warmup_batch_current_v2/metrics.json",
+    "334": "../../../outputs/eval_task_334_warmup_batch_current/metrics.json",
+    "335": "../../../outputs/eval_task_335_warmup_batch_current/metrics.json",
+    "336": "../../../outputs/eval_task_336_warmup_batch_current/metrics.json",
+    "337": "../../../outputs/eval_task_337_warmup_batch_current/metrics.json",
+    "338": "../../../outputs/eval_task_338_warmup_batch_current/metrics.json",
+    "359": "../../../outputs/eval_task_359_fullrun_warmup_current_v5/metrics.json",
+    "361": "../../../outputs/eval_task_361_fullrun_warmup_current_v3/metrics.json"
+  }
+}
