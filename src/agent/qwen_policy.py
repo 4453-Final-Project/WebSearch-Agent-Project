@@ -3864,18 +3864,20 @@ def _rank_dashboard_products(rows: list[dict[str, str]]) -> list[dict[str, str]]
             key=lambda item: (-item[1], family_best[item[0]][1]),
         )
         return [family_best[family][2] for family, _ in ordered_families]
-    ordered: list[dict[str, str]] = [rows[0]]
-    remaining = sorted(
-        rows[1:],
+    ordered: list[dict[str, str]] = []
+    seen_products: set[str] = set()
+    ranked_rows = sorted(
+        rows,
         key=lambda row: (
             -int(row.get("quantity", "0") or "0"),
-            -_parse_amount(row.get("price", "")),
             row.get("product", "").lower(),
         ),
     )
-    for row in remaining:
-        if row.get("product") and row.get("product") != ordered[0].get("product"):
+    for row in ranked_rows:
+        product = row.get("product", "")
+        if product and product not in seen_products:
             ordered.append(row)
+            seen_products.add(product)
     return ordered
 
 
