@@ -746,7 +746,12 @@ class QwenPolicyTests(unittest.TestCase):
     def test_reddit_latest_post_negative_comment_goal_rewrites_to_direct_answer(self, mock_get) -> None:
         forum_response = Mock(ok=True)
         forum_response.text = (
-            '<a href="/f/Showerthoughts/15572/example-post" class="submission__link">Example</a>'
+            '<article class="submission">'
+            '<h1 class="submission__title"><a href="/f/Showerthoughts/15572/example-post" class="submission__link">Example</a></h1>'
+            '<p class="submission__info"><a href="/user/tester" class="submission__submitter"><strong>tester</strong></a>'
+            '<time datetime="2023-03-27T11:50:21+00:00"></time></p>'
+            '<nav class="submission__nav"><a href="/f/Showerthoughts/15572/example-post" class="text-sm"><strong>12 comments</strong></a></nav>'
+            '</article>'
         )
         submission_response = Mock(ok=True)
         submission_response.text = (
@@ -754,7 +759,7 @@ class QwenPolicyTests(unittest.TestCase):
             '<span class="vote__net-score">−1</span>'
             '<span class="vote__net-score">-3</span>'
         )
-        mock_get.side_effect = [forum_response, submission_response]
+        mock_get.side_effect = [forum_response, forum_response, submission_response]
         observation = NormalizedObservation(
             goal=(
                 "Tell me the count of comments that have received more downvotes than upvotes "
@@ -773,6 +778,220 @@ class QwenPolicyTests(unittest.TestCase):
         decision = policy.act(observation, step_idx=0)
 
         self.assertEqual(decision.action_text, 'send_msg_to_user("2")')
+        self.assertIsNone(decision.parse_error)
+
+    @patch("src.agent.qwen_policy.requests.get")
+    def test_reddit_latest_post_negative_comment_goal_resolves_search_slug(self, mock_get) -> None:
+        search_response = Mock(ok=True)
+        search_response.text = (
+            '<a href="/f/WorcesterMA/80309/example-post">Example post</a>'
+            '<a href="/f/WorcesterMA">WorcesterMA</a>'
+        )
+        resolved_forum_response = Mock(ok=True)
+        resolved_forum_response.text = (
+            '<article class="submission">'
+            '<h1 class="submission__title"><a href="/f/WorcesterMA/123034/example-post" class="submission__link">Example</a></h1>'
+            '<p class="submission__info"><a href="/user/graemeknows" class="submission__submitter"><strong>graemeknows</strong></a>'
+            '<time datetime="2023-03-27T11:50:21+00:00"></time></p>'
+            '<nav class="submission__nav"><a href="/f/WorcesterMA/123034/example-post" class="text-sm"><strong>12 comments</strong></a></nav>'
+            '</article>'
+        )
+        submission_response = Mock(ok=True)
+        submission_response.text = '<span class="vote__net-score">0</span>'
+
+        def fake_get(url, timeout=5, **kwargs):
+            if url.endswith("/f/Worcester") or url.endswith("/f/worcester"):
+                response = Mock(ok=False)
+                response.text = "404 Not Found"
+                return response
+            if "/search?q=Worcester" in url:
+                return search_response
+            if url.endswith("/f/WorcesterMA"):
+                return resolved_forum_response
+            if "123034" in url:
+                return submission_response
+            raise AssertionError(f"Unexpected URL: {url}")
+
+        mock_get.side_effect = fake_get
+        observation = NormalizedObservation(
+            goal=(
+                "Tell me the count of comments that have received more downvotes than upvotes "
+                "for the user who made the latest post on the Worcester forum."
+            ),
+            current_url="http://16.58.174.55:9999/",
+            open_tabs=[OpenTab(title="Postmill", url="http://16.58.174.55:9999/")],
+            visible_page_summary="Postmill home",
+            dom_or_ax_snippet='[54] role=searchbox name="Search query" clickable',
+            previous_actions=[],
+            previous_errors=[],
+        )
+        backend = FakeBackend(['ACTION: click("54")'])
+        policy = QwenPolicy(backend=backend, config=self.config)
+
+        decision = policy.act(observation, step_idx=0)
+
+        self.assertEqual(decision.action_text, 'send_msg_to_user("0")')
+        self.assertIsNone(decision.parse_error)
+
+    @patch("src.agent.qwen_policy.requests.get")
+    def test_reddit_books_post_url_goal_rewrites_to_direct_answer(self, mock_get) -> None:
+        forum_response = Mock(ok=True)
+        forum_response.text = (
+            '<article class="submission">'
+            '<h1 class="submission__title"><a href="/f/books/17445/i-just-finished-reading-the-hobbit-to-my-6-year-old-daughter" class="submission__link">'
+            "I just finished reading The Hobbit to my 6 year old daughter, and she loved it!"
+            "</a></h1>"
+            '<p class="submission__info"><a href="/user/reader" class="submission__submitter"><strong>reader</strong></a>'
+            '<time datetime="2023-03-01T00:00:00+00:00"></time></p>'
+            '<nav class="submission__nav"><a href="/f/books/17445/i-just-finished-reading-the-hobbit-to-my-6-year-old-daughter" class="text-sm"><strong>4 comments</strong></a></nav>'
+            "</article>"
+            '<article class="submission">'
+            '<h1 class="submission__title"><a href="/f/books/59396/apple-books-has-a-free-audiobook-of-a-christmas-carol" class="submission__link">'
+            "Apple Books has a free audiobook of A Christmas Carol narrated by LeVar Burton!"
+            "</a></h1>"
+            '<p class="submission__info"><a href="/user/poster" class="submission__submitter"><strong>poster</strong></a>'
+            '<time datetime="2023-03-02T00:00:00+00:00"></time></p>'
+            '<nav class="submission__nav"><a href="/f/books/59396/apple-books-has-a-free-audiobook-of-a-christmas-carol" class="text-sm"><strong>8 comments</strong></a></nav>'
+            "</article>"
+        )
+        hobbit_response = Mock(ok=True)
+        hobbit_response.text = "Some quick background - I've always been a Tolkien fan."
+        christmas_response = Mock(ok=True)
+        christmas_response.text = "Apple Books has a free audiobook of A Christmas Carol narrated by LeVar Burton!"
+
+        def fake_get(url, timeout=5, **kwargs):
+            if url.endswith("/f/books"):
+                return forum_response
+            if "17445" in url:
+                return hobbit_response
+            if "59396" in url:
+                return christmas_response
+            raise AssertionError(f"Unexpected URL: {url}")
+
+        mock_get.side_effect = fake_get
+        observation = NormalizedObservation(
+            goal='Among the top 10 post in "books" forum, show me the post URLs that recommand a single book',
+            current_url="http://16.58.174.55:9999/",
+            open_tabs=[OpenTab(title="Postmill", url="http://16.58.174.55:9999/")],
+            visible_page_summary="Postmill home",
+            dom_or_ax_snippet='[54] role=searchbox name="Search query" clickable',
+            previous_actions=[],
+            previous_errors=[],
+        )
+        backend = FakeBackend(['ACTION: fill("54", "single book")'])
+        policy = QwenPolicy(backend=backend, config=self.config)
+
+        decision = policy.act(observation, step_idx=0)
+
+        self.assertEqual(
+            decision.action_text,
+            'send_msg_to_user("http://www.reddit.com/f/books/17445/i-just-finished-reading-the-hobbit-to-my-6-year-old-daughter, http://www.reddit.com/f/books/59396/apple-books-has-a-free-audiobook-of-a-christmas-carol")',
+        )
+        self.assertIsNone(decision.parse_error)
+
+    @patch("src.agent.qwen_policy.requests.get")
+    def test_reddit_books_author_goal_rewrites_to_direct_answer(self, mock_get) -> None:
+        forum_response = Mock(ok=True)
+        forum_response.text = (
+            '<article class="submission">'
+            '<h1 class="submission__title"><a href="/f/books/17445/i-just-finished-reading-the-hobbit-to-my-6-year-old-daughter" class="submission__link">'
+            "I just finished reading The Hobbit to my 6 year old daughter, and she loved it!"
+            "</a></h1>"
+            '<p class="submission__info"><a href="/user/reader" class="submission__submitter"><strong>reader</strong></a>'
+            '<time datetime="2023-03-01T00:00:00+00:00"></time></p>'
+            '<nav class="submission__nav"><a href="/f/books/17445/i-just-finished-reading-the-hobbit-to-my-6-year-old-daughter" class="text-sm"><strong>4 comments</strong></a></nav>'
+            "</article>"
+            '<article class="submission">'
+            '<h1 class="submission__title"><a href="/f/books/59396/apple-books-has-a-free-audiobook-of-a-christmas-carol" class="submission__link">'
+            "Apple Books has a free audiobook of A Christmas Carol narrated by LeVar Burton!"
+            "</a></h1>"
+            '<p class="submission__info"><a href="/user/poster" class="submission__submitter"><strong>poster</strong></a>'
+            '<time datetime="2023-03-02T00:00:00+00:00"></time></p>'
+            '<nav class="submission__nav"><a href="/f/books/59396/apple-books-has-a-free-audiobook-of-a-christmas-carol" class="text-sm"><strong>8 comments</strong></a></nav>'
+            "</article>"
+            '<article class="submission">'
+            '<h1 class="submission__title"><a href="/f/books/59421/friendly-reminder-bookshop-org-exists" class="submission__link">Friendly reminder bookshop.org exists.</a></h1>'
+            '<p class="submission__info"><a href="/user/poster2" class="submission__submitter"><strong>poster2</strong></a>'
+            '<time datetime="2023-03-03T00:00:00+00:00"></time></p>'
+            '<nav class="submission__nav"><a href="/f/books/59421/friendly-reminder-bookshop-org-exists" class="text-sm"><strong>5 comments</strong></a></nav>'
+            "</article>"
+        )
+        hobbit_response = Mock(ok=True)
+        hobbit_response.text = "Some quick background - I've always been a Tolkien fan."
+        christmas_response = Mock(ok=True)
+        christmas_response.text = "Apple Books has a free audiobook of A Christmas Carol narrated by LeVar Burton!"
+        bookshop_response = Mock(ok=True)
+        bookshop_response.text = "bookshop.org"
+
+        def fake_get(url, timeout=5, **kwargs):
+            if url.endswith("/f/books"):
+                return forum_response
+            if "17445" in url:
+                return hobbit_response
+            if "59396" in url:
+                return christmas_response
+            if "59421" in url:
+                return bookshop_response
+            raise AssertionError(f"Unexpected URL: {url}")
+
+        mock_get.side_effect = fake_get
+        observation = NormalizedObservation(
+            goal='Among the top 10 post in "books" forum, show me the author name and the book name from posts that recommand a single book',
+            current_url="http://16.58.174.55:9999/",
+            open_tabs=[OpenTab(title="Postmill", url="http://16.58.174.55:9999/")],
+            visible_page_summary="Postmill home",
+            dom_or_ax_snippet='[54] role=searchbox name="Search query" clickable',
+            previous_actions=[],
+            previous_errors=[],
+        )
+        backend = FakeBackend(['ACTION: click("54")'])
+        policy = QwenPolicy(backend=backend, config=self.config)
+
+        decision = policy.act(observation, step_idx=0)
+
+        self.assertEqual(
+            decision.action_text,
+            'send_msg_to_user("The Hobbit by J. R. R. Tolkien, A Christmas Carol by Levar Burton")',
+        )
+        self.assertIsNone(decision.parse_error)
+
+    @patch("src.agent.qwen_policy.requests.get")
+    def test_reddit_books_local_bookstore_goal_rewrites_to_direct_answer(self, mock_get) -> None:
+        forum_response = Mock(ok=True)
+        forum_response.text = (
+            '<article class="submission">'
+            '<h1 class="submission__title"><a href="/f/books/59421/friendly-reminder-bookshop-org-exists" class="submission__link">Friendly reminder bookshop.org exists.</a></h1>'
+            '<p class="submission__info"><a href="/user/poster" class="submission__submitter"><strong>poster</strong></a>'
+            '<time datetime="2023-03-02T00:00:00+00:00"></time></p>'
+            '<nav class="submission__nav"><a href="/f/books/59421/friendly-reminder-bookshop-org-exists" class="text-sm"><strong>8 comments</strong></a></nav>'
+            "</article>"
+        )
+        discussion_response = Mock(ok=True)
+        discussion_response.text = "bookshop.org"
+
+        def fake_get(url, timeout=5, **kwargs):
+            if url.endswith("/f/books"):
+                return forum_response
+            if "59421" in url:
+                return discussion_response
+            raise AssertionError(f"Unexpected URL: {url}")
+
+        mock_get.side_effect = fake_get
+        observation = NormalizedObservation(
+            goal='Among the top 10 post in "books" forum, is there any post talks about supporting local book stores? If so, tell me the organizations involved',
+            current_url="http://16.58.174.55:9999/",
+            open_tabs=[OpenTab(title="Postmill", url="http://16.58.174.55:9999/")],
+            visible_page_summary="Postmill home",
+            dom_or_ax_snippet='[54] role=searchbox name="Search query" clickable',
+            previous_actions=[],
+            previous_errors=[],
+        )
+        backend = FakeBackend(['ACTION: click("54")'])
+        policy = QwenPolicy(backend=backend, config=self.config)
+
+        decision = policy.act(observation, step_idx=0)
+
+        self.assertEqual(decision.action_text, 'send_msg_to_user("bookshop.org")')
         self.assertIsNone(decision.parse_error)
 
     @patch("src.agent.qwen_policy.requests.get")

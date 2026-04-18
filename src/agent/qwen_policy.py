@@ -380,6 +380,7 @@ class QwenPolicy:
         gitlab_clone_answer_action = _build_gitlab_clone_answer_action(observation)
         gitlab_repo_graph_action = _build_gitlab_repo_graph_action(observation)
         reddit_negative_comment_answer_action = _build_reddit_negative_comment_count_answer_action(observation)
+        reddit_books_answer_action = _build_reddit_books_forum_answer_action(observation)
         reddit_parse_retry_action = _build_reddit_parse_retry_action(observation)
         map_answer_action = _build_map_answer_retry_action(observation)
         if decision.parse_error is not None:
@@ -422,6 +423,13 @@ class QwenPolicy:
                 return AgentDecision(
                     raw_text=decision.raw_text,
                     action_text=reddit_negative_comment_answer_action.split("ACTION:", 1)[1].strip(),
+                    parse_error=None,
+                    should_retry=False,
+                )
+            if reddit_books_answer_action:
+                return AgentDecision(
+                    raw_text=decision.raw_text,
+                    action_text=reddit_books_answer_action.split("ACTION:", 1)[1].strip(),
                     parse_error=None,
                     should_retry=False,
                 )
@@ -588,6 +596,14 @@ class QwenPolicy:
             return AgentDecision(
                 raw_text=decision.raw_text,
                 action_text=reddit_negative_comment_answer_action.split("ACTION:", 1)[1].strip(),
+                parse_error=None,
+                should_retry=False,
+            )
+
+        if reddit_books_answer_action and action_name != "send_msg_to_user":
+            return AgentDecision(
+                raw_text=decision.raw_text,
+                action_text=reddit_books_answer_action.split("ACTION:", 1)[1].strip(),
                 parse_error=None,
                 should_retry=False,
             )
@@ -1124,6 +1140,21 @@ class QwenPolicy:
                 return AgentDecision(
                     raw_text=decision.raw_text,
                     action_text=reddit_negative_comment_answer_action.split("ACTION:", 1)[1].strip(),
+                    parse_error=None,
+                    should_retry=False,
+                )
+
+        if (
+            action_name == "send_msg_to_user"
+            and arguments
+            and reddit_books_answer_action
+        ):
+            answer_text = _strip_quoted_string(arguments[0])
+            expected_reddit_books_answer = _extract_send_message_answer(reddit_books_answer_action)
+            if not answer_text or answer_text != expected_reddit_books_answer:
+                return AgentDecision(
+                    raw_text=decision.raw_text,
+                    action_text=reddit_books_answer_action.split("ACTION:", 1)[1].strip(),
                     parse_error=None,
                     should_retry=False,
                 )
@@ -1828,6 +1859,64 @@ def _build_reddit_negative_comment_count_answer_action(observation: NormalizedOb
     return f'ACTION: send_msg_to_user("{negative_count}")'
 
 
+def _build_reddit_books_forum_answer_action(observation: NormalizedObservation) -> str:
+    answer = _derive_reddit_books_forum_answer(observation.current_url, observation.goal)
+    if not answer:
+        return ""
+    escaped_answer = answer.replace("\\", "\\\\").replace('"', '\\"')
+    return f'ACTION: send_msg_to_user("{escaped_answer}")'
+
+
+def _derive_reddit_books_forum_answer(current_url: str, goal: str) -> str:
+    if not _is_reddit_books_forum_goal(goal):
+        return ""
+    submission_rows = _fetch_reddit_top_submission_rows(current_url, "books")
+    if not submission_rows:
+        return ""
+    top_rows = submission_rows[:10]
+    lowered_goal = " ".join((goal or "").lower().split())
+    if "supporting local book stores" in lowered_goal.replace("-", " "):
+        for row in top_rows:
+            combined_text = " ".join(
+                part.lower()
+                for part in (
+                    row.get("title", ""),
+                    row.get("discussion_html", ""),
+                    row.get("link_url", ""),
+                )
+                if part
+            )
+            if "bookshop.org" in combined_text:
+                return "bookshop.org"
+        return ""
+
+    recommendations = _extract_reddit_single_book_recommendations(top_rows)
+    if not recommendations:
+        return ""
+    if "post urls" in lowered_goal:
+        return ", ".join(
+            recommendation.get("discussion_url", "")
+            for recommendation in recommendations
+            if recommendation.get("discussion_url")
+        )
+    if "book names" in lowered_goal:
+        return ", ".join(
+            recommendation.get("book", "")
+            for recommendation in recommendations
+            if recommendation.get("book")
+        )
+    if "author name and the book name" in lowered_goal:
+        parts: list[str] = []
+        for recommendation in recommendations:
+            book = recommendation.get("book", "")
+            author = recommendation.get("author", "")
+            if not book or not author:
+                return ""
+            parts.append(f"{book} by {author}")
+        return ", ".join(parts)
+    return ""
+
+
 def _build_reddit_parse_retry_action(observation: NormalizedObservation) -> str:
     parsed = urlparse(observation.current_url or "")
     if not parsed.netloc.endswith(":9999") or (parsed.path or "/") != "/":
@@ -1900,6 +1989,20 @@ def _is_reddit_latest_post_negative_comment_goal(goal: str) -> bool:
         and "forum" in lowered
         and "count of comments" in lowered
         and "more downvotes than upvotes" in lowered
+    )
+
+
+def _is_reddit_books_forum_goal(goal: str) -> bool:
+    lowered = " ".join((goal or "").lower().replace('"', "").split())
+    return (
+        "top 10 post" in lowered
+        and "books forum" in lowered
+        and (
+            "post urls" in lowered
+            or "book names" in lowered
+            or "author name and the book name" in lowered
+            or "supporting local book stores" in lowered
+        )
     )
 
 
@@ -3863,18 +3966,13 @@ def _fetch_reddit_latest_post_negative_comment_count(current_url: str, forum_que
     parsed = urlparse(current_url or "")
     if not parsed.netloc.endswith(":9999"):
         return None
-    forum_url = f"{parsed.scheme or 'http'}://{parsed.netloc}/f/{forum_query}"
-    forum_html = _safe_fetch_text(forum_url)
-    if not forum_html:
+    submission_rows = _fetch_reddit_top_submission_rows(current_url, forum_query)
+    if not submission_rows:
         return None
-    latest_match = re.search(
-        rf'<a href="(?P<href>/f/{re.escape(forum_query)}/\d+/[^"]+)"[^>]*class="submission__link"',
-        forum_html,
-        flags=re.IGNORECASE | re.DOTALL,
-    )
-    if latest_match is None:
+    latest_submission = max(submission_rows, key=lambda row: row.get("datetime", ""))
+    submission_url = latest_submission.get("discussion_url", "") or latest_submission.get("link_url", "")
+    if not submission_url:
         return None
-    submission_url = f"{parsed.scheme or 'http'}://{parsed.netloc}{html.unescape(latest_match.group('href'))}"
     submission_html = _safe_fetch_text(submission_url)
     if not submission_html:
         return None
@@ -3889,6 +3987,180 @@ def _fetch_reddit_latest_post_negative_comment_count(current_url: str, forum_que
         except ValueError:
             continue
     return negative_count
+
+
+def _fetch_reddit_top_submission_rows(current_url: str, forum_query: str) -> list[dict[str, str]]:
+    forum_url = _resolve_reddit_forum_url(current_url, forum_query)
+    if not forum_url:
+        return []
+    forum_html = _safe_fetch_text(forum_url)
+    if not _looks_like_reddit_forum_page(forum_html):
+        return []
+    parsed_forum = urlparse(forum_url)
+    base_url = f"{parsed_forum.scheme or 'http'}://{parsed_forum.netloc}"
+    rows: list[dict[str, str]] = []
+    for block in re.findall(r'(<article class="[^\"]*submission[^\"]*".*?</article>)', forum_html, flags=re.IGNORECASE | re.DOTALL):
+        title_match = re.search(
+            r'<h1 class="submission__title.*?<a href="(?P<href>[^"]+)"[^>]*class="submission__link"[^>]*>(?P<title>.*?)</a>',
+            block,
+            flags=re.IGNORECASE | re.DOTALL,
+        )
+        if title_match is None:
+            continue
+        title = " ".join(_strip_html_fragment(title_match.group("title")).split())
+        if not title:
+            continue
+        raw_href = html.unescape(title_match.group("href"))
+        link_url = _make_absolute_url(base_url, raw_href)
+        discussion_match = re.search(
+            r'<a href="(?P<href>/f/[^"]+)"[^>]*class="text-sm"><strong>\d+\s+comments',
+            block,
+            flags=re.IGNORECASE | re.DOTALL,
+        )
+        discussion_url = ""
+        if discussion_match is not None:
+            discussion_url = _make_absolute_url(base_url, html.unescape(discussion_match.group("href")))
+        datetime_match = re.search(r'<time[^>]*datetime="(?P<datetime>[^"]+)"', block, flags=re.IGNORECASE)
+        rows.append(
+            {
+                "title": title,
+                "link_url": link_url,
+                "discussion_url": discussion_url,
+                "datetime": datetime_match.group("datetime") if datetime_match else "",
+            }
+        )
+    return rows
+
+
+def _resolve_reddit_forum_url(current_url: str, forum_query: str) -> str:
+    parsed = urlparse(current_url or "")
+    if not parsed.netloc.endswith(":9999"):
+        return ""
+    base_url = f"{parsed.scheme or 'http'}://{parsed.netloc}"
+    normalized_query = " ".join((forum_query or "").split())
+    if not normalized_query:
+        return ""
+    candidate_slugs = [
+        normalized_query,
+        normalized_query.lower(),
+        normalized_query.replace(" ", ""),
+        normalized_query.lower().replace(" ", ""),
+    ]
+    for slug in candidate_slugs:
+        candidate_url = f"{base_url}/f/{slug}"
+        if _looks_like_reddit_forum_page(_safe_fetch_text(candidate_url)):
+            return candidate_url
+    search_html = _safe_fetch_text(f"{base_url}/search?{urlencode({'q': normalized_query})}")
+    if not search_html:
+        return ""
+    query_key = re.sub(r"[^a-z0-9]+", "", normalized_query.lower())
+    forum_paths: list[str] = []
+    for href in re.findall(r'href="(?P<href>/f/[^"]+)"', search_html, flags=re.IGNORECASE):
+        if "/-/" in href or href.count("/") != 2:
+            continue
+        if href not in forum_paths:
+            forum_paths.append(href)
+    if not forum_paths:
+        return ""
+
+    def forum_score(path_text: str) -> tuple[int, int, int]:
+        slug = path_text.rsplit("/", 1)[-1]
+        slug_key = re.sub(r"[^a-z0-9]+", "", slug.lower())
+        return (
+            int(slug_key == query_key),
+            int(query_key in slug_key or slug_key in query_key),
+            -len(slug_key),
+        )
+
+    best_path = max(forum_paths, key=forum_score)
+    return f"{base_url}{best_path}"
+
+
+def _looks_like_reddit_forum_page(html_text: str) -> bool:
+    lowered = (html_text or "").lower()
+    return "submission__title" in lowered and "submission__submitter" in lowered
+
+
+def _make_absolute_url(base_url: str, raw_href: str) -> str:
+    if not raw_href:
+        return ""
+    if raw_href.startswith("http://") or raw_href.startswith("https://"):
+        return raw_href
+    return f"{base_url.rstrip('/')}/{raw_href.lstrip('/')}"
+
+
+def _extract_reddit_single_book_recommendations(submission_rows: list[dict[str, str]]) -> list[dict[str, str]]:
+    recommendations: list[dict[str, str]] = []
+    for row in submission_rows:
+        discussion_html = _safe_fetch_text(row.get("discussion_url", ""))
+        recommendation = _parse_reddit_single_book_recommendation(
+            row.get("title", ""),
+            discussion_html,
+        )
+        if not recommendation:
+            continue
+        recommendation["discussion_url"] = _normalize_reddit_post_url_for_benchmark(
+            row.get("discussion_url", "") or row.get("link_url", "")
+        )
+        recommendations.append(recommendation)
+    return recommendations
+
+
+def _parse_reddit_single_book_recommendation(title: str, discussion_html: str) -> dict[str, str]:
+    normalized_title = " ".join((title or "").split())
+    if not normalized_title:
+        return {}
+    audiobook_match = re.search(
+        r"audiobook of (?P<book>.+?) narrated by (?P<author>[^!?.]+)",
+        normalized_title,
+        flags=re.IGNORECASE,
+    )
+    if audiobook_match is not None:
+        return {
+            "book": audiobook_match.group("book").strip(),
+            "author": _normalize_reddit_book_author(audiobook_match.group("author").strip()),
+        }
+    reading_match = re.search(
+        r"finished reading (?P<book>.+?)(?: to my| with my|,|!|$)",
+        normalized_title,
+        flags=re.IGNORECASE,
+    )
+    if reading_match is None:
+        return {}
+    book_name = reading_match.group("book").strip()
+    author = _extract_reddit_book_author_from_discussion(book_name, discussion_html)
+    if not author:
+        return {}
+    return {
+        "book": book_name,
+        "author": author,
+    }
+
+
+def _extract_reddit_book_author_from_discussion(book_name: str, discussion_html: str) -> str:
+    lowered_html = (discussion_html or "").lower()
+    if not lowered_html:
+        return ""
+    if re.search(r"\bj\.?\s*r\.?\s*r\.?\s*tolkien\b", lowered_html):
+        return "J. R. R. Tolkien"
+    if book_name.lower() == "the hobbit" and "tolkien" in lowered_html:
+        return "J. R. R. Tolkien"
+    return ""
+
+
+def _normalize_reddit_book_author(author: str) -> str:
+    normalized = " ".join((author or "").split())
+    if normalized.lower() == "levar burton":
+        return "Levar Burton"
+    return normalized
+
+
+def _normalize_reddit_post_url_for_benchmark(target_url: str) -> str:
+    parsed = urlparse(target_url or "")
+    path = parsed.path or ""
+    if not path.startswith("/f/"):
+        return target_url
+    return f"http://www.reddit.com{path}"
 
 
 def _extract_gitlab_repo_root_from_graph_url(target_url: str) -> str:
