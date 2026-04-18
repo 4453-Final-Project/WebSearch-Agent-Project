@@ -69,6 +69,7 @@ def collect_scripted_warmup_demos(
     seed: int,
     episodes: int,
     max_steps: int,
+    per_task_max_steps: dict[int, int] | None = None,
     out_dir: str | Path,
     headed: bool = False,
 ) -> dict[str, object]:
@@ -82,6 +83,7 @@ def collect_scripted_warmup_demos(
         policy = get_scripted_warmup_policy(task_id)
         task_dir = out_dir / f"task_{task_id:04d}"
         task_dir.mkdir(parents=True, exist_ok=True)
+        task_max_steps = (per_task_max_steps or {}).get(task_id, max_steps)
 
         task_episodes: list[dict[str, object]] = []
         for episode_idx in range(episodes):
@@ -91,7 +93,7 @@ def collect_scripted_warmup_demos(
                 policy=policy,
                 task_id=task_id,
                 seed=episode_seed,
-                max_steps=max_steps,
+                max_steps=task_max_steps,
                 out_dir=episode_out_dir,
                 headless=not headed,
             )
@@ -103,6 +105,7 @@ def collect_scripted_warmup_demos(
             "task_id": task_id,
             "policy_name": policy.name,
             "episodes": len(task_episodes),
+            "max_steps": task_max_steps,
             "success_count": success_count,
             "success_rate": success_count / max(1, len(task_episodes)),
             "average_reward": sum(float(episode.get("reward", 0.0)) for episode in task_episodes) / max(1, len(task_episodes)),
@@ -116,6 +119,11 @@ def collect_scripted_warmup_demos(
         "task_ids": task_ids,
         "task_count": len(task_ids),
         "episodes_per_task": episodes,
+        "default_max_steps": max_steps,
+        "per_task_max_steps": {
+            str(task_id): task_max_steps
+            for task_id, task_max_steps in sorted((per_task_max_steps or {}).items())
+        },
         "episodes": len(all_episodes),
         "success_count": sum(int(episode.get("success", False)) for episode in all_episodes),
         "success_rate": sum(int(episode.get("success", False)) for episode in all_episodes) / max(1, len(all_episodes)),

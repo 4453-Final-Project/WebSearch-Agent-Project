@@ -14,10 +14,13 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from scripts.run_family_curriculum import (
     _get_family_requirement_status,
+    _get_group_step_overrides,
     _load_existing_eval_results,
     _load_partial_eval_results,
     _load_partial_eval_results_from_tree,
     _load_split_from_manifest,
+    _prepare_warmup_demos,
+    _resolve_family_task_group_step_overrides,
     _run_baseline_eval,
     _resolve_preflight_out_path,
     _validate_family_requirements,
@@ -59,6 +62,10 @@ class RunFamilyCurriculumTests(unittest.TestCase):
                 "0.3",
                 "--step-weight-min",
                 "0.07",
+                "--task-group-max-steps",
+                "site_gitlab=8",
+                "--warmup-demo-task-group-max-steps",
+                "site_gitlab=7",
             ]
         )
 
@@ -70,6 +77,35 @@ class RunFamilyCurriculumTests(unittest.TestCase):
         self.assertEqual(args.step_weight_terminal_success_bonus, 1.4)
         self.assertEqual(args.step_weight_error_step_multiplier, 0.3)
         self.assertEqual(args.step_weight_min, 0.07)
+        self.assertEqual(args.task_group_max_steps, ["site_gitlab=8"])
+        self.assertEqual(args.warmup_demo_task_group_max_steps, ["site_gitlab=7"])
+
+    def test_get_group_step_overrides_parses_cli_entries(self) -> None:
+        args = build_arg_parser().parse_args(
+            [
+                "--task-group-max-steps",
+                "site_gitlab=8",
+                "--task-group-max-steps",
+                "judge_gated=6",
+            ]
+        )
+
+        overrides = _get_group_step_overrides(args, "task_group_max_steps")
+
+        self.assertEqual(overrides, {"site_gitlab": 8, "judge_gated": 6})
+
+    def test_resolve_family_task_group_step_overrides_uses_max_matching_budget(self) -> None:
+        overrides = _resolve_family_task_group_step_overrides(
+            "bootstrap41",
+            (21, 132, 133, 134),
+            default_max_steps=4,
+            group_overrides={"site_gitlab": 8, "judge_free": 6},
+        )
+
+        self.assertEqual(overrides[21], 6)
+        self.assertEqual(overrides[132], 8)
+        self.assertEqual(overrides[133], 8)
+        self.assertEqual(overrides[134], 8)
 
     def test_resolve_preflight_out_path_uses_explicit_path(self) -> None:
         args = build_arg_parser().parse_args(["--preflight-out", "C:\\tmp\\preflight.json"])
@@ -380,6 +416,39 @@ class RunFamilyCurriculumTests(unittest.TestCase):
         self.assertTrue(preflight["recommended_split_alignment"]["matches_recommended_split"])
         self.assertEqual(preflight["recommended_split_alignment"]["differences"], {})
 
+    def test_prepare_warmup_demos_applies_group_specific_max_steps(self) -> None:
+        split = TaskSplit(
+            family_name="bootstrap41",
+            task_ids=(21, 132),
+            warmup_task_ids=(21, 132),
+            grpo_task_ids=(),
+            holdout_task_ids=(),
+            eval_task_ids=(21, 132),
+            split_seed=42,
+        )
+        args = mock.Mock(
+            reuse_existing_demos=False,
+            seed=42,
+            warmup_demo_episodes=2,
+            warmup_demo_max_steps=4,
+            warmup_demo_task_group_max_steps={"site_gitlab": 8},
+            headed=False,
+        )
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            warmup_demo_dir = Path(tmp_dir)
+            with mock.patch(
+                "scripts.run_family_curriculum.collect_scripted_warmup_demos",
+                return_value={"task_count": 2},
+            ) as collect_mock:
+                result = _prepare_warmup_demos(args, split, warmup_demo_dir)
+
+        self.assertEqual(result, {"task_count": 2})
+        self.assertEqual(
+            collect_mock.call_args.kwargs["per_task_max_steps"],
+            {132: 8},
+        )
+
     def test_load_existing_eval_results_reads_per_task_metrics_tree(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             root = Path(tmp_dir)
@@ -449,6 +518,7 @@ class RunFamilyCurriculumTests(unittest.TestCase):
                 model_path=None,
                 max_new_tokens=64,
                 eval_temperature=0.0,
+                task_group_max_steps={"judge_gated": 8},
                 seed=42,
                 max_steps=4,
                 eval_episodes=2,
@@ -465,6 +535,7 @@ class RunFamilyCurriculumTests(unittest.TestCase):
             self.assertEqual(load_policy_mock.call_count, 1)
             self.assertEqual(eval_mock.call_count, 1)
             self.assertEqual(eval_mock.call_args.kwargs["task_id"], 102)
+            self.assertEqual(eval_mock.call_args.kwargs["max_steps"], 4)
             self.assertEqual(
                 results,
                 {
@@ -499,6 +570,7 @@ class RunFamilyCurriculumTests(unittest.TestCase):
                 model_path=None,
                 max_new_tokens=64,
                 eval_temperature=0.0,
+                task_group_max_steps={"judge_free": 8},
                 seed=42,
                 max_steps=4,
                 eval_episodes=2,
@@ -515,6 +587,7 @@ class RunFamilyCurriculumTests(unittest.TestCase):
             self.assertEqual(load_policy_mock.call_count, 1)
             self.assertEqual(eval_mock.call_count, 1)
             self.assertEqual(eval_mock.call_args.kwargs["task_id"], 102)
+            self.assertEqual(eval_mock.call_args.kwargs["max_steps"], 4)
             self.assertEqual(
                 results,
                 {
@@ -522,6 +595,47 @@ class RunFamilyCurriculumTests(unittest.TestCase):
                     "102": {"success_rate": 1.0},
                 },
             )
+
+    def test_run_baseline_eval_applies_group_specific_max_steps(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            out_dir = Path(tmp_dir)
+            split = TaskSplit(
+                family_name="bootstrap41",
+                task_ids=(21, 132),
+                warmup_task_ids=(21,),
+                grpo_task_ids=(132,),
+                holdout_task_ids=(),
+                eval_task_ids=(21, 132),
+                split_seed=42,
+            )
+            args = mock.Mock(
+                reuse_existing_stages=False,
+                model_dir_name="Qwen3.5-2B",
+                model_path=None,
+                max_new_tokens=64,
+                eval_temperature=0.0,
+                task_group_max_steps={"site_gitlab": 8},
+                seed=42,
+                max_steps=4,
+                eval_episodes=2,
+                headed=False,
+            )
+
+            with mock.patch("scripts.run_family_curriculum.load_policy", return_value="policy"):
+                with mock.patch(
+                    "scripts.run_family_curriculum.evaluate_single_task",
+                    side_effect=[
+                        {"success_rate": 1.0},
+                        {"success_rate": 0.0},
+                    ],
+                ) as eval_mock:
+                    _run_baseline_eval(args, split, out_dir)
+
+            self.assertEqual(eval_mock.call_count, 2)
+            self.assertEqual(eval_mock.call_args_list[0].kwargs["task_id"], 21)
+            self.assertEqual(eval_mock.call_args_list[0].kwargs["max_steps"], 4)
+            self.assertEqual(eval_mock.call_args_list[1].kwargs["task_id"], 132)
+            self.assertEqual(eval_mock.call_args_list[1].kwargs["max_steps"], 8)
 
     def test_build_family_run_summary_computes_holdout_transfer(self) -> None:
         split = TaskSplit(

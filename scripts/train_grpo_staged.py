@@ -62,6 +62,12 @@ def build_arg_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--seed", type=int, default=DEFAULT_SEED)
     parser.add_argument("--max-steps", type=int, default=DEFAULT_MAX_STEPS)
+    parser.add_argument(
+        "--task-max-steps",
+        action="append",
+        default=[],
+        help="Optional per-task step overrides like 133=8. Repeat to set multiple tasks.",
+    )
     parser.add_argument("--model-dir-name", default=None)
     parser.add_argument("--model-path", default=None)
     parser.add_argument("--warmup-demo-dir", action="append", default=[])
@@ -171,6 +177,7 @@ def _run_collect(args, out_dir: Path) -> int:
     policy = _build_policy(args, model_path=str(out_dir / "warmup_adapter"))
     root_dir = out_dir / "rollouts" / "iteration_0000"
     root_dir.mkdir(parents=True, exist_ok=True)
+    task_max_steps = _resolve_task_max_steps(args)
 
     summaries: list[dict[str, object]] = []
     base_seed = args.seed
@@ -187,7 +194,7 @@ def _run_collect(args, out_dir: Path) -> int:
                         policy,
                         task_id,
                         episode_seed,
-                        args.max_steps,
+                        task_max_steps.get(task_id, args.max_steps),
                         str(episode_dir),
                         headless=args.headless,
                     )
@@ -201,6 +208,7 @@ def _run_collect(args, out_dir: Path) -> int:
                         "success": trajectory.success,
                         "reward": trajectory.reward,
                         "steps_taken": trajectory.steps_taken,
+                        "max_steps": task_max_steps.get(task_id, args.max_steps),
                         "invalid_action_count": trajectory.invalid_action_count,
                         "parse_failure_count": trajectory.parse_failure_count,
                     }
@@ -213,6 +221,10 @@ def _run_collect(args, out_dir: Path) -> int:
         "holdout_task_ids": args.holdout_task_ids,
         "episode_count": len(summaries),
         "success_count": sum(1 for item in summaries if item["success"]),
+        "task_max_steps": {
+            str(task_id): task_max_steps.get(task_id, args.max_steps)
+            for task_id in args.task_ids
+        },
         "task_success_counts": {
             str(task_id): sum(1 for item in summaries if item["task_id"] == task_id and item["success"])
             for task_id in args.task_ids
@@ -293,6 +305,7 @@ def _run_eval(args, out_dir: Path) -> int:
 def _evaluate_adapter(args, model_path: Path, output_root: Path) -> dict[str, object]:
     results: dict[str, object] = {}
     policy = None
+    task_max_steps = _resolve_task_max_steps(args)
     for task_id in args.eval_task_ids:
         metrics_path = output_root / f"task_{task_id}" / "metrics.json"
         if metrics_path.exists():
@@ -304,7 +317,7 @@ def _evaluate_adapter(args, model_path: Path, output_root: Path) -> dict[str, ob
             policy=policy,
             task_id=task_id,
             seed=args.seed,
-            max_steps=args.max_steps,
+            max_steps=task_max_steps.get(task_id, args.max_steps),
             episodes=args.eval_episodes,
             out_dir=output_root / f"task_{task_id}",
             headless=args.headless,
@@ -436,6 +449,36 @@ def _build_holdout_eval_summary(
         "absolute_gain": grpo_success_rate - warmup_success_rate,
         "per_task": per_task,
     }
+
+
+def _resolve_task_max_steps(args) -> dict[int, int]:
+    raw_value = getattr(args, "task_max_steps", None)
+    if not raw_value:
+        return {}
+    if isinstance(raw_value, dict):
+        return {int(task_id): int(max_steps) for task_id, max_steps in raw_value.items()}
+    return _parse_step_override_entries(raw_value, subject_name="task id")
+
+
+def _parse_step_override_entries(entries: list[str], *, subject_name: str) -> dict[int, int]:
+    overrides: dict[int, int] = {}
+    for entry in entries:
+        if "=" not in entry:
+            raise ValueError(f"Invalid {subject_name} step override {entry!r}; expected NAME=STEPS.")
+        name_text, value_text = entry.split("=", 1)
+        try:
+            name = int(name_text.strip())
+            value = int(value_text.strip())
+        except ValueError as exc:
+            raise ValueError(
+                f"Invalid {subject_name} step override {entry!r}; both sides must be integers."
+            ) from exc
+        if value <= 0:
+            raise ValueError(
+                f"Invalid {subject_name} step override {entry!r}; step count must be positive."
+            )
+        overrides[name] = value
+    return overrides
 
 
 def _select_warmup_trajectories(paths: list[str], task_ids: list[int], limit_per_task: int) -> list[EpisodeTrajectory]:

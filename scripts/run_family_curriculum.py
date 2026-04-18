@@ -40,8 +40,20 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--model-dir-name", default=None)
     parser.add_argument("--model-path", default=None)
     parser.add_argument("--max-steps", type=int, default=DEFAULT_MAX_STEPS)
+    parser.add_argument(
+        "--task-group-max-steps",
+        action="append",
+        default=[],
+        help="Optional per-task-group overrides like site_gitlab=8. Repeat to set multiple groups.",
+    )
     parser.add_argument("--warmup-demo-episodes", type=int, default=2)
     parser.add_argument("--warmup-demo-max-steps", type=int, default=4)
+    parser.add_argument(
+        "--warmup-demo-task-group-max-steps",
+        action="append",
+        default=[],
+        help="Optional warmup-demo-specific per-task-group overrides like site_gitlab=8.",
+    )
     parser.add_argument("--reuse-existing-demos", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument("--reuse-existing-stages", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument("--warmup-demo-limit-per-task", type=int, default=2)
@@ -426,6 +438,12 @@ def _prepare_warmup_demos(args, split: TaskSplit, warmup_demo_dir: Path) -> dict
         seed=args.seed,
         episodes=args.warmup_demo_episodes,
         max_steps=args.warmup_demo_max_steps,
+        per_task_max_steps=_resolve_family_task_group_step_overrides(
+            split.family_name,
+            split.warmup_task_ids,
+            default_max_steps=args.warmup_demo_max_steps,
+            group_overrides=_get_group_step_overrides(args, "warmup_demo_task_group_max_steps"),
+        ),
         out_dir=warmup_demo_dir,
         headed=args.headed,
     )
@@ -458,6 +476,12 @@ def _run_baseline_eval(args, split: TaskSplit, out_dir: Path) -> dict[str, objec
         quant_type=args.quant_type,
         quant_use_double_quant=args.quant_use_double_quant,
     )
+    task_max_steps = _resolve_family_task_group_step_overrides(
+        split.family_name,
+        split.eval_task_ids,
+        default_max_steps=args.max_steps,
+        group_overrides=_get_group_step_overrides(args, "task_group_max_steps"),
+    )
     for task_id in split.eval_task_ids:
         if str(task_id) in results:
             continue
@@ -465,7 +489,7 @@ def _run_baseline_eval(args, split: TaskSplit, out_dir: Path) -> dict[str, objec
             policy=policy,
             task_id=task_id,
             seed=args.seed,
-            max_steps=args.max_steps,
+            max_steps=task_max_steps.get(task_id, args.max_steps),
             episodes=args.eval_episodes,
             out_dir=eval_root / f"task_{task_id}",
             headless=not args.headed,
@@ -515,6 +539,12 @@ def _build_stage_args(args, split: TaskSplit, out_dir: Path, warmup_demo_dir: Pa
         allow_task_overlap=False,
         seed=args.seed,
         max_steps=args.max_steps,
+        task_max_steps=_resolve_family_task_group_step_overrides(
+            split.family_name,
+            split.task_ids,
+            default_max_steps=args.max_steps,
+            group_overrides=_get_group_step_overrides(args, "task_group_max_steps"),
+        ),
         model_dir_name=args.model_dir_name,
         model_path=args.model_path,
         warmup_demo_dir=[str(warmup_demo_dir)],
@@ -697,6 +727,67 @@ def _mean_success_rate(values) -> float:
 
 def _load_json(path: Path) -> dict[str, object]:
     return json.loads(path.read_text(encoding="utf-8"))
+
+
+def _get_group_step_overrides(args, attr_name: str) -> dict[str, int]:
+    raw_value = getattr(args, attr_name, None)
+    if not raw_value:
+        return {}
+    if isinstance(raw_value, dict):
+        return dict(raw_value)
+    return _parse_step_override_entries(raw_value, subject_name="task group")
+
+
+def _parse_step_override_entries(entries: list[str], *, subject_name: str) -> dict[str, int]:
+    overrides: dict[str, int] = {}
+    for entry in entries:
+        if "=" not in entry:
+            raise ValueError(f"Invalid {subject_name} step override {entry!r}; expected NAME=STEPS.")
+        name, value_text = entry.split("=", 1)
+        name = name.strip()
+        value_text = value_text.strip()
+        if not name:
+            raise ValueError(f"Invalid {subject_name} step override {entry!r}; missing name.")
+        try:
+            value = int(value_text)
+        except ValueError as exc:
+            raise ValueError(
+                f"Invalid {subject_name} step override {entry!r}; step count must be an integer."
+            ) from exc
+        if value <= 0:
+            raise ValueError(
+                f"Invalid {subject_name} step override {entry!r}; step count must be positive."
+            )
+        overrides[name] = value
+    return overrides
+
+
+def _resolve_family_task_group_step_overrides(
+    family_name: str,
+    task_ids: tuple[int, ...] | list[int],
+    *,
+    default_max_steps: int,
+    group_overrides: dict[str, int],
+) -> dict[int, int]:
+    if not group_overrides:
+        return {}
+    task_groups = get_family_task_groups(family_name)
+    unknown_groups = sorted(group_name for group_name in group_overrides if group_name not in task_groups)
+    if unknown_groups:
+        raise ValueError(
+            f"Unknown task groups for family {family_name!r}: {', '.join(unknown_groups)}"
+        )
+
+    task_ids = tuple(int(task_id) for task_id in task_ids)
+    overrides: dict[int, int] = {}
+    for task_id in task_ids:
+        resolved_max_steps = default_max_steps
+        for group_name, group_max_steps in group_overrides.items():
+            if task_id in task_groups[group_name]:
+                resolved_max_steps = max(resolved_max_steps, group_max_steps)
+        if resolved_max_steps != default_max_steps:
+            overrides[task_id] = resolved_max_steps
+    return overrides
 
 
 if __name__ == "__main__":

@@ -51,7 +51,8 @@ Latest larger-family signal on the executable `shopping_exact` curriculum:
 - both warmup and GRPO now use step-aware sample weighting that emphasizes later clean steps and successful terminal answer steps while downweighting invalid or parse-failed steps
 - those step-aware sample-weight knobs are now exposed on the staged and family runners too, so cross-site reruns can tune terminal-step emphasis and error-step downweighting from the CLI instead of requiring another source edit
 - stale quantized step-weight comparison note: `outputs/qwen_bootstrap41_curriculum_v12_qlora_stepweight_redditfix/` started before the month-specific January admin bestseller precedence fix landed for tasks `4` and `5`, so it is now mainly a pre-admin-bestseller-fix comparison point
-- current quantized step-weight comparison rerun to watch: `outputs/qwen_bootstrap41_curriculum_v13_qlora_stepweight_adminbestsellerfix/`, which reuses the same checked-in `bootstrap41` split and `bnb_4bit` step-weight recipe on the latest catalog-plus-spend-plus-Reddit stack plus the January admin bestseller-source fix
+- completed quantized step-weight comparison note: `outputs/qwen_bootstrap41_curriculum_v13_qlora_stepweight_adminbestsellerfix/` finished with baseline `34/41`, warmup-only `33/41`, and warmup + GRPO `33/41`, so the fixed global `4`-step recipe still under-served the slower cross-site slice instead of producing a true training lift
+- current quantized GitLab-budget rerun to watch: `outputs/qwen_bootstrap41_curriculum_v14_qlora_gitlabsteps/`, which keeps the same checked-in `bootstrap41` split and `bnb_4bit` step-weight recipe but raises `site_gitlab` to `8` steps in both warmup-demo collection and staged rollout/eval passes
 - the optional local quantized path is now wired too: `outputs/qwen_shopping_full_warmup_smoke_v2_qlora/` completed a real `bnb_4bit` warmup smoke on the WSL GPU stack
 - current quantized bootstrap baseline rerun to watch: `outputs/qwen_bootstrap41_curriculum_v6_qlora/`
 - stale quantized step-weight note: `outputs/qwen_bootstrap41_curriculum_v9_qlora_stepweight_dashboardfix/` started before the task-`41` popularity fix and is now mainly a pre-searchterm-fix comparison point
@@ -106,6 +107,7 @@ All runnable scripts accept `--model-dir-name` or `--model-path`, so you can swa
 For detached local QLoRA-style bootstrap runs, use `scripts/local/run_qwen_bootstrap41_curriculum_qlora_tmux.sh` or `.ps1`.
 For the stronger quantized reward-shaped variant, use `scripts/local/run_qwen_bootstrap41_curriculum_qlora_rewardtune_tmux.sh` or `.ps1`.
 For the stronger quantized reward-shaped plus step-weight-tuned variant, use `scripts/local/run_qwen_bootstrap41_curriculum_qlora_stepweight_tune_tmux.sh` or `.ps1`.
+For the GitLab-budget comparison variant, use `scripts/local/run_qwen_bootstrap41_curriculum_qlora_gitlabsteps_tmux.sh` or `.ps1`.
 
 ## Setup
 

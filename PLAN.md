@@ -66,7 +66,8 @@ Use the existing BrowserGym/WebArena pipeline to improve a local model beyond it
 - stale quantized step-weight comparison note: `outputs/qwen_bootstrap41_curriculum_v9_qlora_stepweight_dashboardfix/` started before the task-`41` search-term popularity fix, so it is now mainly a pre-searchterm-fix comparison point
 - stale quantized step-weight comparison note: `outputs/qwen_bootstrap41_curriculum_v11_qlora_stepweight_catalogfix/` also started before the task-`29` Reddit fix landed in the stack, so it is now mainly a pre-Reddit-fix comparison point
 - stale quantized step-weight comparison note: `outputs/qwen_bootstrap41_curriculum_v12_qlora_stepweight_redditfix/` also started before the month-specific January admin bestseller precedence fix landed for tasks `4` and `5`, so it is now mainly a pre-admin-bestseller-fix comparison point
-- current quantized step-weight comparison rerun to watch: `outputs/qwen_bootstrap41_curriculum_v13_qlora_stepweight_adminbestsellerfix/`, which reuses the same checked-in `bootstrap41` split and `bnb_4bit` step-weight recipe on the latest catalog-plus-spend-plus-Reddit stack plus the January admin bestseller-source fix
+- completed quantized step-weight comparison note: `outputs/qwen_bootstrap41_curriculum_v13_qlora_stepweight_adminbestsellerfix/` finished with baseline `34/41`, warmup-only `33/41`, and warmup + GRPO `33/41`, so the fixed global `4`-step recipe still looks like the limiting factor on the slower cross-site slice
+- current quantized GitLab-budget comparison rerun to watch: `outputs/qwen_bootstrap41_curriculum_v14_qlora_gitlabsteps/`, which keeps the same checked-in `bootstrap41` split and `bnb_4bit` step-weight recipe but raises `site_gitlab` to `8` steps during warmup-demo collection and staged rollout/eval
 
 ## Scale-Up Target
 

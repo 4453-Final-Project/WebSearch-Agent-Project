@@ -17,6 +17,8 @@ from scripts.train_grpo_staged import (
     _build_sample_weight_config,
     _evaluate_adapter,
     _normalize_stage_task_sets,
+    _resolve_task_max_steps,
+    _run_collect,
 )
 
 
@@ -94,6 +96,7 @@ class TrainGrpoStagedTests(unittest.TestCase):
             eval_task_ids=[101, 102],
             seed=7,
             max_steps=4,
+            task_max_steps={102: 8},
             eval_episodes=2,
             headless=True,
             eval_temperature=0.0,
@@ -118,6 +121,58 @@ class TrainGrpoStagedTests(unittest.TestCase):
         build_policy.assert_called_once_with(args, model_path="adapter", temperature=0.0)
         evaluate_single_task_mock.assert_called_once()
         self.assertEqual(evaluate_single_task_mock.call_args.kwargs["task_id"], 102)
+        self.assertEqual(evaluate_single_task_mock.call_args.kwargs["max_steps"], 8)
+
+    def test_resolve_task_max_steps_parses_cli_entries(self) -> None:
+        args = Namespace(task_max_steps=["133=8", "293=6"])
+
+        overrides = _resolve_task_max_steps(args)
+
+        self.assertEqual(overrides, {133: 8, 293: 6})
+
+    def test_run_collect_uses_task_specific_max_steps(self) -> None:
+        args = Namespace(
+            task_ids=[133, 293],
+            warmup_task_ids=[133, 293],
+            holdout_task_ids=[],
+            groups_per_task=1,
+            group_size=1,
+            seed=7,
+            max_steps=4,
+            task_max_steps={133: 8},
+            headless=True,
+        )
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            out_dir = Path(tmp_dir)
+            with (
+                patch("scripts.train_grpo_staged._build_policy", return_value="policy"),
+                patch("scripts.train_grpo_staged.run_episode") as run_episode_mock,
+                patch(
+                    "scripts.train_grpo_staged.load_episode_trajectory",
+                    side_effect=[
+                        Namespace(
+                            success=True,
+                            reward=1.0,
+                            steps_taken=4,
+                            invalid_action_count=0,
+                            parse_failure_count=0,
+                        ),
+                        Namespace(
+                            success=False,
+                            reward=0.0,
+                            steps_taken=4,
+                            invalid_action_count=0,
+                            parse_failure_count=0,
+                        ),
+                    ],
+                ),
+            ):
+                _run_collect(args, out_dir)
+
+        self.assertEqual(run_episode_mock.call_count, 2)
+        self.assertEqual(run_episode_mock.call_args_list[0].args[3], 8)
+        self.assertEqual(run_episode_mock.call_args_list[1].args[3], 4)
 
     def test_build_reward_config_uses_cli_overrides(self) -> None:
         args = Namespace(
@@ -171,6 +226,8 @@ class TrainGrpoStagedTests(unittest.TestCase):
                 "warmup",
                 "--task-id",
                 "325",
+                "--task-max-steps",
+                "325=8",
                 "--quantization-mode",
                 "bnb_4bit",
                 "--quant-compute-dtype",
@@ -190,6 +247,7 @@ class TrainGrpoStagedTests(unittest.TestCase):
         )
 
         self.assertEqual(args.quantization_mode, "bnb_4bit")
+        self.assertEqual(args.task_max_steps, ["325=8"])
         self.assertEqual(args.quant_compute_dtype, "float16")
         self.assertEqual(args.quant_type, "nf4")
         self.assertFalse(args.quant_use_double_quant)
