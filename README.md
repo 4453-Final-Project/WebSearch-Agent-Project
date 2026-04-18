@@ -59,6 +59,7 @@ Latest larger-family signal on the executable `shopping_exact` curriculum:
 - current quantized GitLab-coverage rerun to watch: `outputs/qwen_bootstrap41_curriculum_v18_qlora_gitlabcoverage_cleandemos_warmupoversample/`, which keeps the same checked-in `bootstrap41` split, `bnb_4bit` step-weight recipe, GitLab budget, GitLab coverage bump, and clean-demo fix as `v17` but now also oversamples GitLab warmup demos during supervised warmup
 - next mixed-family scale-up path is ready too: `scripts/local/run_qwen_web_mix88_curriculum_qlora_tmux.sh` now launches a detached `bnb_4bit` `web_mix88` run on the checked-in 88-task split, so if `bootstrap41` finally shows training lift we can promote the same recipe onto the larger mixed family without ad hoc shell work
 - the matched mixed-family GitLab-coverage variant is ready too: `scripts/local/run_qwen_web_mix88_curriculum_qlora_gitlabcoverage_tmux.sh` carries the same GitLab budget and coverage bump as `v16`, so the first `web_mix88` promotion path does not fall back to the weaker mixed-family baseline launcher
+- the matched mixed-family GitLab-coverage warmup-oversample variant is ready too: `scripts/local/run_qwen_web_mix88_curriculum_qlora_gitlabcoverage_warmupoversample_tmux.sh` layers the same `site_gitlab=2.5` warmup oversample used in `v18` onto that mixed-family GitLab recipe, so a future `web_mix88` promotion does not silently drop the newest supervised warmup change
 - the optional local quantized path is now wired too: `outputs/qwen_shopping_full_warmup_smoke_v2_qlora/` completed a real `bnb_4bit` warmup smoke on the WSL GPU stack
 - completed family runs now also emit `baseline_vs_warmup_audit.json`, `baseline_vs_grpo_audit.json`, and `warmup_vs_grpo_audit.json`, so stage regressions are saved automatically instead of requiring a separate manual audit pass
 - current quantized bootstrap baseline rerun to watch: `outputs/qwen_bootstrap41_curriculum_v6_qlora/`
@@ -121,6 +122,7 @@ For the cleaned-demo GitLab-coverage comparison variant, use `scripts/local/run_
 For the cleaned-demo GitLab-coverage warmup-oversample variant, use `scripts/local/run_qwen_bootstrap41_curriculum_qlora_gitlabcoverage_cleandemos_warmupoversample_tmux.sh` or `.ps1`.
 For the detached mixed-family QLoRA scale-up path, use `scripts/local/run_qwen_web_mix88_curriculum_qlora_tmux.sh` or `.ps1`.
 For the mixed-family GitLab-coverage variant, use `scripts/local/run_qwen_web_mix88_curriculum_qlora_gitlabcoverage_tmux.sh` or `.ps1`.
+For the mixed-family GitLab-coverage warmup-oversample variant, use `scripts/local/run_qwen_web_mix88_curriculum_qlora_gitlabcoverage_warmupoversample_tmux.sh` or `.ps1`.
 
 ## Setup
 
