@@ -371,6 +371,7 @@ class QwenPolicy:
         shopping_target_action = _build_shopping_canonical_target_action(observation)
         shopping_order_detail_action = _build_shopping_order_detail_retry_action(observation)
         shopping_order_answer_action = _build_shopping_order_answer_retry_action(observation)
+        shopping_order_spend_answer_action = _build_shopping_order_spend_answer_retry_action(observation)
         shopping_order_detail_answer_action = _build_shopping_order_detail_answer_retry_action(observation)
         shopping_catalog_price_range_answer_action = _build_shopping_catalog_price_range_answer_action(observation)
         shopping_review_answer_action = _build_shopping_review_answer_retry_action(observation)
@@ -396,6 +397,13 @@ class QwenPolicy:
                 return AgentDecision(
                     raw_text=decision.raw_text,
                     action_text=shopping_catalog_price_range_answer_action.split("ACTION:", 1)[1].strip(),
+                    parse_error=None,
+                    should_retry=False,
+                )
+            if shopping_order_spend_answer_action:
+                return AgentDecision(
+                    raw_text=decision.raw_text,
+                    action_text=shopping_order_spend_answer_action.split("ACTION:", 1)[1].strip(),
                     parse_error=None,
                     should_retry=False,
                 )
@@ -474,6 +482,13 @@ class QwenPolicy:
                 return AgentDecision(
                     raw_text=decision.raw_text,
                     action_text=shopping_admin_order_answer_action.split("ACTION:", 1)[1].strip(),
+                    parse_error=None,
+                    should_retry=False,
+                )
+            if shopping_order_spend_answer_action:
+                return AgentDecision(
+                    raw_text=decision.raw_text,
+                    action_text=shopping_order_spend_answer_action.split("ACTION:", 1)[1].strip(),
                     parse_error=None,
                     should_retry=False,
                 )
@@ -572,6 +587,14 @@ class QwenPolicy:
             return AgentDecision(
                 raw_text=decision.raw_text,
                 action_text=shopping_catalog_price_range_answer_action.split("ACTION:", 1)[1].strip(),
+                parse_error=None,
+                should_retry=False,
+            )
+
+        if shopping_order_spend_answer_action and action_name != "send_msg_to_user":
+            return AgentDecision(
+                raw_text=decision.raw_text,
+                action_text=shopping_order_spend_answer_action.split("ACTION:", 1)[1].strip(),
                 parse_error=None,
                 should_retry=False,
             )
@@ -1118,6 +1141,28 @@ class QwenPolicy:
                 return AgentDecision(
                     raw_text=decision.raw_text,
                     action_text=shopping_catalog_price_range_answer_action.split("ACTION:", 1)[1].strip(),
+                    parse_error=None,
+                    should_retry=False,
+                )
+
+        if (
+            action_name == "send_msg_to_user"
+            and arguments
+            and shopping_order_spend_answer_action
+        ):
+            answer_text = _strip_quoted_string(arguments[0])
+            expected_spend_answer = _extract_send_message_answer(shopping_order_spend_answer_action)
+            if (
+                not answer_text
+                or _looks_like_placeholder_answer(answer_text)
+                or (
+                    expected_spend_answer
+                    and not _answers_match_expected_value(answer_text, expected_spend_answer)
+                )
+            ):
+                return AgentDecision(
+                    raw_text=decision.raw_text,
+                    action_text=shopping_order_spend_answer_action.split("ACTION:", 1)[1].strip(),
                     parse_error=None,
                     should_retry=False,
                 )
@@ -2411,6 +2456,19 @@ def _build_shopping_order_answer_retry_action(observation: NormalizedObservation
     return f'ACTION: send_msg_to_user("{answer}")'
 
 
+def _build_shopping_order_spend_answer_retry_action(observation: NormalizedObservation) -> str:
+    parsed = urlparse(observation.current_url or "")
+    if not parsed.netloc.endswith(":7770"):
+        return ""
+    if not (parsed.path or "/").startswith("/sales/order/history"):
+        return ""
+    lowered_goal = " ".join((observation.goal or "").lower().split())
+    answer = _derive_customer_order_spend_answer(lowered_goal, observation.visible_page_summary)
+    if not answer:
+        return ""
+    return f'ACTION: send_msg_to_user("{answer}")'
+
+
 def _build_shopping_order_detail_answer_retry_action(observation: NormalizedObservation) -> str:
     if not _is_shopping_order_detail_page(observation.current_url):
         return ""
@@ -2497,6 +2555,9 @@ def _derive_customer_order_history_answer(goal: str, dom_or_ax_snippet: str, vis
     lowered_goal = " ".join((goal or "").lower().split())
     if "refund" in lowered_goal and "Customer refund match count: 0" in visible_page_summary:
         return "0"
+    spend_answer = _derive_customer_order_spend_answer(lowered_goal, visible_page_summary)
+    if spend_answer:
+        return spend_answer
     if not rows and product_rows:
         product_date_answer = _derive_last_ordered_product_date_answer(lowered_goal, visible_page_summary)
         if product_date_answer:
@@ -3053,6 +3114,190 @@ def _extract_last_ordered_product_query(lowered_goal: str) -> str:
     if not match:
         return ""
     return re.sub(r"\s+", " ", match.group(1)).strip(" ?.")
+
+
+def _goal_requests_shopping_category_spend(lowered_goal: str) -> bool:
+    return bool(re.search(r"\bhow much i spent on .+ shopping during\b", lowered_goal))
+
+
+def _extract_shopping_spend_category(lowered_goal: str) -> str:
+    match = re.search(r"\bhow much i spent on (?P<category>.+?) shopping during\b", lowered_goal)
+    if match is None:
+        return ""
+    return " ".join(match.group("category").split())
+
+
+def _extract_customer_order_spend_rows(visible_page_summary: str) -> list[dict[str, str]]:
+    rows: list[dict[str, str]] = []
+    for raw_line in visible_page_summary.splitlines():
+        line = " ".join(raw_line.split())
+        if not line.startswith("Customer order spend row:"):
+            continue
+        payload = line.split(":", 1)[1].strip()
+        row: dict[str, str] = {}
+        for part in payload.split("|"):
+            if "=" not in part:
+                continue
+            key, value = part.split("=", 1)
+            row[key.strip()] = value.strip()
+        if row:
+            rows.append(row)
+    return rows
+
+
+def _shopping_spend_context_present(visible_page_summary: str) -> bool:
+    return any(
+        " ".join(line.split()).startswith("Customer order spend context:")
+        for line in visible_page_summary.splitlines()
+    )
+
+
+def _shopping_spend_category_matches_title(category: str, title: str) -> bool:
+    lowered_category = " ".join((category or "").lower().split())
+    lowered_title = " ".join((title or "").lower().split())
+    if not lowered_category or not lowered_title:
+        return False
+    keyword_groups: list[tuple[str, tuple[tuple[str, ...], ...]]] = [
+        (
+            "food-related",
+            (
+                ("cornbread",),
+                ("corn", "muffin"),
+                ("kosher",),
+                ("mre",),
+                ("meal",),
+                ("meals",),
+                ("dinner",),
+                ("snack",),
+                ("cereal",),
+                ("drink",),
+                ("coffee",),
+                ("tea",),
+                ("soup",),
+                ("sauce",),
+                ("cookie",),
+                ("chocolate",),
+                ("mix",),
+            ),
+        ),
+        (
+            "food",
+            (
+                ("cornbread",),
+                ("corn", "muffin"),
+                ("kosher",),
+                ("mre",),
+                ("meal",),
+                ("meals",),
+                ("dinner",),
+                ("snack",),
+                ("cereal",),
+                ("drink",),
+                ("coffee",),
+                ("tea",),
+                ("soup",),
+                ("sauce",),
+                ("cookie",),
+                ("chocolate",),
+                ("mix",),
+            ),
+        ),
+        (
+            "cooking and food",
+            (
+                ("cornbread",),
+                ("corn", "muffin"),
+                ("kosher",),
+                ("mre",),
+                ("meal",),
+                ("meals",),
+                ("dinner",),
+                ("snack",),
+                ("cereal",),
+                ("drink",),
+                ("coffee",),
+                ("tea",),
+                ("soup",),
+                ("sauce",),
+                ("cookie",),
+                ("chocolate",),
+                ("mix",),
+                ("kitchen",),
+                ("baker",),
+                ("baking",),
+                ("oven",),
+                ("cook",),
+                ("cookware",),
+            ),
+        ),
+        (
+            "hair care and hair style",
+            (
+                ("hair",),
+                ("wig",),
+                ("shampoo",),
+                ("conditioner",),
+                ("styling",),
+                ("barber",),
+                ("clipper",),
+                ("braid",),
+                ("curl",),
+                ("straightener",),
+                ("hairspray",),
+            ),
+        ),
+        (
+            "home decoration",
+            (
+                ("decor",),
+                ("decoration",),
+                ("decorative",),
+                ("lamp",),
+                ("wall",),
+                ("candle",),
+                ("vase",),
+                ("clock",),
+                ("mirror",),
+                ("ornament",),
+                ("art",),
+                ("shelf",),
+                ("curtain",),
+                ("rug",),
+                ("planter",),
+            ),
+        ),
+    ]
+    for label, groups in keyword_groups:
+        if label not in lowered_category:
+            continue
+        return any(all(token in lowered_title for token in group) for group in groups)
+    category_tokens = [
+        token
+        for token in re.findall(r"[a-z0-9]+", lowered_category)
+        if token not in {"and", "related", "care", "style", "shopping", "home"}
+    ]
+    if not category_tokens:
+        return False
+    return any(token in lowered_title for token in category_tokens)
+
+
+def _derive_customer_order_spend_answer(lowered_goal: str, visible_page_summary: str) -> str:
+    if not _goal_requests_shopping_category_spend(lowered_goal):
+        return ""
+    category = _extract_shopping_spend_category(lowered_goal)
+    if not category:
+        return ""
+    spend_rows = _extract_customer_order_spend_rows(visible_page_summary)
+    if not spend_rows and not _shopping_spend_context_present(visible_page_summary):
+        return ""
+    total = sum(
+        _parse_amount(row.get("price", ""))
+        for row in spend_rows
+        if _shopping_spend_category_matches_title(category, row.get("product", ""))
+    )
+    if total == 0:
+        return "0"
+    return f"{total:.2f}"
 
 
 def _extract_customer_order_product_rows(visible_page_summary: str) -> list[dict[str, str]]:

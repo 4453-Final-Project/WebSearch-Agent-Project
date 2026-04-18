@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import calendar
+import calendar
 import html
 import json
 import os
@@ -200,6 +201,12 @@ def run_episode(
                     env=env,
                 )
                 _append_shopping_order_product_lines(
+                    serialized_observation,
+                    raw_observation=obs,
+                    goal=raw_goal,
+                    env=env,
+                )
+                _append_shopping_order_spend_lines(
                     serialized_observation,
                     raw_observation=obs,
                     goal=raw_goal,
@@ -1017,6 +1024,22 @@ def _append_shopping_order_product_lines(
     env: Any,
 ) -> None:
     lines = _collect_shopping_order_product_lines(raw_observation, goal=goal, env=env)
+    if not lines:
+        return
+    existing_summary = _as_text(serialized_observation.get("visible_page_summary"))
+    existing_lines = existing_summary.splitlines()
+    combined_lines = [*existing_lines, *lines]
+    serialized_observation["visible_page_summary"] = _truncate_text("\n".join(combined_lines))
+
+
+def _append_shopping_order_spend_lines(
+    serialized_observation: dict[str, Any],
+    *,
+    raw_observation: Mapping[str, Any],
+    goal: str,
+    env: Any,
+) -> None:
+    lines = _collect_shopping_order_spend_lines(raw_observation, goal=goal, env=env)
     if not lines:
         return
     existing_summary = _as_text(serialized_observation.get("visible_page_summary"))
@@ -2066,6 +2089,193 @@ def _collect_shopping_order_product_lines(
                 f"order={order_number} | date={ordered_at} | product={title}"
             )
     return product_lines
+
+
+def _goal_requests_shopping_category_spend(goal: str) -> bool:
+    lowered = " ".join((goal or "").lower().split())
+    return bool(re.search(r"\bhow much i spent on .+ shopping during\b", lowered))
+
+
+def _extract_shopping_spend_category(goal: str) -> str:
+    lowered = " ".join((goal or "").lower().split())
+    match = re.search(r"\bhow much i spent on (?P<category>.+?) shopping during\b", lowered)
+    if match is None:
+        return ""
+    return " ".join(match.group("category").split())
+
+
+def _extract_shopping_spend_date_range(goal: str) -> tuple[datetime | None, datetime | None]:
+    lowered = " ".join((goal or "").lower().split())
+    if not lowered:
+        return None, None
+    exact_match = re.search(r"\b(?P<month>\d{1,2})/(?P<day>\d{1,2})/(?P<year>20\d{2})\b", lowered)
+    if exact_match is not None:
+        exact_date = datetime(
+            year=int(exact_match.group("year")),
+            month=int(exact_match.group("month")),
+            day=int(exact_match.group("day")),
+        )
+        return exact_date, exact_date
+    month_lookup = {
+        "january": 1,
+        "jan": 1,
+        "february": 2,
+        "feb": 2,
+        "march": 3,
+        "mar": 3,
+        "april": 4,
+        "apr": 4,
+        "may": 5,
+        "june": 6,
+        "jun": 6,
+        "july": 7,
+        "jul": 7,
+        "august": 8,
+        "aug": 8,
+        "september": 9,
+        "sept": 9,
+        "sep": 9,
+        "october": 10,
+        "oct": 10,
+        "november": 11,
+        "nov": 11,
+        "december": 12,
+        "dec": 12,
+    }
+    mid_month_match = re.search(
+        r"\bfrom mid (?P<start_month>january|jan|february|feb|march|mar|april|apr|may|june|jun|july|jul|august|aug|september|sept|sep|october|oct|november|nov|december|dec)"
+        r"\s+to the end (?P<end_month>january|jan|february|feb|march|mar|april|apr|may|june|jun|july|jul|august|aug|september|sept|sep|october|oct|november|nov|december|dec)"
+        r"\s+(?P<year>20\d{2})\b",
+        lowered,
+    )
+    if mid_month_match is not None:
+        year = int(mid_month_match.group("year"))
+        start_month = month_lookup[mid_month_match.group("start_month")]
+        end_month = month_lookup[mid_month_match.group("end_month")]
+        end_day = calendar.monthrange(year, end_month)[1]
+        return datetime(year, start_month, 15), datetime(year, end_month, end_day)
+    month_year_match = re.search(
+        r"\b(?P<month>january|jan|february|feb|march|mar|april|apr|may|june|jun|july|jul|august|aug|september|sept|sep|october|oct|november|nov|december|dec)\s+(?P<year>20\d{2})\b",
+        lowered,
+    )
+    if month_year_match is not None:
+        year = int(month_year_match.group("year"))
+        month = month_lookup[month_year_match.group("month")]
+        last_day = calendar.monthrange(year, month)[1]
+        return datetime(year, month, 1), datetime(year, month, last_day)
+    return None, None
+
+
+def _customer_order_date_matches_spend_range(
+    date_text: str,
+    *,
+    start_date: datetime | None,
+    end_date: datetime | None,
+) -> bool:
+    if start_date is None and end_date is None:
+        return True
+    parsed = _parse_customer_order_date(date_text)
+    if parsed is None:
+        return False
+    normalized = parsed.replace(hour=0, minute=0, second=0, microsecond=0)
+    if start_date is not None and normalized < start_date:
+        return False
+    if end_date is not None and normalized > end_date:
+        return False
+    return True
+
+
+def _parse_customer_order_date(value: str) -> datetime | None:
+    normalized = " ".join((value or "").replace("Sept", "Sep").split())
+    if not normalized:
+        return None
+    for date_format in ("%m/%d/%y", "%m/%d/%Y", "%B %d, %Y", "%b %d, %Y"):
+        try:
+            return datetime.strptime(normalized, date_format)
+        except ValueError:
+            continue
+    return None
+
+
+def _collect_shopping_order_detail_product_price_rows(
+    page: Any,
+    *,
+    history_url: str,
+    order_number: str,
+) -> list[tuple[str, str]]:
+    detail_page = page.context.new_page()
+    try:
+        history_parsed = urlparse(history_url or "")
+        detail_url = (
+            f"{history_parsed.scheme or 'http'}://{history_parsed.netloc}/sales/order/view/order_id/{int(order_number)}/"
+        )
+        detail_page.goto(detail_url, wait_until="domcontentloaded")
+        rows: list[tuple[str, str]] = []
+        for raw_text in detail_page.locator("table.data.table.table-order-items tbody tr").all_inner_texts():
+            normalized = _normalize_inline_text(raw_text)
+            if not normalized:
+                continue
+            title, amount = _parse_refund_detail_product_row(normalized)
+            if title and amount:
+                rows.append((title, amount))
+        return rows
+    finally:
+        detail_page.close()
+
+
+def _collect_shopping_order_spend_lines(
+    obs: Mapping[str, Any],
+    *,
+    goal: str,
+    env: Any,
+) -> list[str]:
+    if not _goal_requests_shopping_category_spend(goal):
+        return []
+    category = _extract_shopping_spend_category(goal)
+    if not category:
+        return []
+    current_url = _as_text(obs.get("url"))
+    parsed = urlparse(current_url or "")
+    if not parsed.netloc.endswith(":7770") or not (parsed.path or "/").startswith("/sales/order/history"):
+        return []
+    page = getattr(getattr(env, "unwrapped", env), "page", None)
+    if page is None or not hasattr(page, "context"):
+        return []
+    start_date, end_date = _extract_shopping_spend_date_range(goal)
+    rows = _extract_shopping_customer_order_rows(obs)
+    background_rows = _collect_shopping_customer_order_rows_from_history_pages(page, current_url)
+    if background_rows:
+        seen_orders = {row.get("order_number", "") for row in rows}
+        rows.extend(row for row in background_rows if row.get("order_number", "") not in seen_orders)
+    eligible_rows = [
+        row
+        for row in rows
+        if row.get("order_number")
+        and row.get("date")
+        and row.get("status", "").lower() not in {"canceled", "cancelled"}
+        and _customer_order_date_matches_spend_range(
+            row.get("date", ""),
+            start_date=start_date,
+            end_date=end_date,
+        )
+    ]
+    lines = [
+        "Customer order spend context: "
+        f"category={category} | matched_orders={len(eligible_rows)}"
+    ]
+    for row in eligible_rows:
+        order_number = row.get("order_number", "")
+        ordered_at = row.get("date", "")
+        for title, amount in _collect_shopping_order_detail_product_price_rows(
+            page,
+            history_url=current_url,
+            order_number=order_number,
+        ):
+            lines.append(
+                "Customer order spend row: "
+                f"order={order_number} | date={ordered_at} | product={title} | price={amount}"
+            )
+    return lines
 
 
 def _collect_shopping_order_detail_date_line(

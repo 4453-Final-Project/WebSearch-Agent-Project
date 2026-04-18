@@ -855,6 +855,130 @@ class WebArenaRunnerTests(unittest.TestCase):
         self.assertEqual(len(env.page.context.detail_pages), 2)
         self.assertTrue(all(page.closed for page in env.page.context.detail_pages))
 
+    def test_order_spend_lines_are_appended_for_category_spend_goal(self) -> None:
+        class FakeLocator:
+            def __init__(self, values):
+                self._values = values
+
+            def all_inner_texts(self):
+                return list(self._values)
+
+        class FakeDetailPage:
+            def __init__(self, product_rows_by_url):
+                self._product_rows_by_url = product_rows_by_url
+                self._current_url = ""
+                self.closed = False
+
+            def goto(self, url, wait_until=None):
+                self._current_url = url
+
+            def locator(self, selector):
+                if selector == "table.data.table.table-order-items tbody tr":
+                    return FakeLocator(self._product_rows_by_url.get(self._current_url, []))
+                raise AssertionError(f"Unexpected selector: {selector}")
+
+            def close(self):
+                self.closed = True
+
+        class FakeHistoryPage:
+            def __init__(self):
+                self._current_url = ""
+                self.closed = False
+
+            def goto(self, url, wait_until=None):
+                self._current_url = url
+
+            def locator(self, selector):
+                if selector == "tbody tr":
+                    return FakeLocator([])
+                raise AssertionError(f"Unexpected selector: {selector}")
+
+            def close(self):
+                self.closed = True
+
+        class FakeContext:
+            def __init__(self, product_rows_by_url):
+                self._product_rows_by_url = product_rows_by_url
+                self.detail_pages = []
+                self.history_pages = []
+
+            def new_page(self):
+                if not self.history_pages:
+                    page = FakeHistoryPage()
+                    self.history_pages.append(page)
+                    return page
+                page = FakeDetailPage(self._product_rows_by_url)
+                self.detail_pages.append(page)
+                return page
+
+        class FakePage:
+            def __init__(self, product_rows_by_url):
+                self.context = FakeContext(product_rows_by_url)
+
+        class FakeEnv:
+            def __init__(self, product_rows_by_url):
+                self.unwrapped = self
+                self.page = FakePage(product_rows_by_url)
+
+        base = "http://3.14.148.71:7770/sales/order/view/order_id"
+        env = FakeEnv(
+            {
+                f"{base}/180/": [
+                    "Jiffy Corn Muffin Cornbread Mix B07HZB38XH $11.43 Ordered1 $11.43",
+                    "Random Accessory B000000000 $4.00 Ordered1 $4.00",
+                ],
+                f"{base}/166/": [
+                    "Kosher MRE Meat Meals Ready to Eat B005IR33MM $12.99 Ordered1 $12.99",
+                ],
+            }
+        )
+        obs = {
+            "url": "http://3.14.148.71:7770/sales/order/history/",
+            "axtree_object": {
+                "nodes": [
+                    {"browsergym_id": "1415", "role": {"value": "gridcell"}, "name": {"value": "000000180"}},
+                    {"browsergym_id": "1416", "role": {"value": "gridcell"}, "name": {"value": "3/11/23"}},
+                    {"browsergym_id": "1417", "role": {"value": "gridcell"}, "name": {"value": "$65.32"}},
+                    {"browsergym_id": "1419", "role": {"value": "gridcell"}, "name": {"value": "Complete"}},
+                    {"browsergym_id": "1426", "role": {"value": "gridcell"}, "name": {"value": "000000166"}},
+                    {"browsergym_id": "1427", "role": {"value": "gridcell"}, "name": {"value": "3/10/23"}},
+                    {"browsergym_id": "1428", "role": {"value": "gridcell"}, "name": {"value": "$17.99"}},
+                    {"browsergym_id": "1430", "role": {"value": "gridcell"}, "name": {"value": "Complete"}},
+                ]
+            },
+            "extra_element_properties": {
+                "1415": {"bbox": [100, 100, 10, 10]},
+                "1416": {"bbox": [200, 100, 10, 10]},
+                "1417": {"bbox": [300, 100, 10, 10]},
+                "1419": {"bbox": [400, 100, 10, 10]},
+                "1426": {"bbox": [100, 140, 10, 10]},
+                "1427": {"bbox": [200, 140, 10, 10]},
+                "1428": {"bbox": [300, 140, 10, 10]},
+                "1430": {"bbox": [400, 140, 10, 10]},
+            },
+        }
+        serialized_observation = {"visible_page_summary": ""}
+
+        webarena_runner._append_shopping_order_spend_lines(
+            serialized_observation,
+            raw_observation=obs,
+            goal="How much I spent on food-related shopping during March 2023",
+            env=env,
+        )
+
+        summary = serialized_observation["visible_page_summary"]
+        self.assertIn("Customer order spend context: category=food-related | matched_orders=2", summary)
+        self.assertIn(
+            "Customer order spend row: order=000000180 | date=3/11/23 | product=Jiffy Corn Muffin Cornbread Mix | price=$11.43",
+            summary,
+        )
+        self.assertIn(
+            "Customer order spend row: order=000000166 | date=3/10/23 | product=Kosher MRE Meat Meals Ready to Eat | price=$12.99",
+            summary,
+        )
+        self.assertEqual(len(env.page.context.detail_pages), 2)
+        self.assertTrue(all(page.closed for page in env.page.context.detail_pages))
+
     def test_order_detail_date_line_is_appended_for_order_date_goal(self) -> None:
         class FakeBody:
             def inner_text(self):

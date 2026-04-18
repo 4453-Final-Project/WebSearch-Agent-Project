@@ -719,6 +719,60 @@ class QwenPolicyTests(unittest.TestCase):
         self.assertEqual(decision.action_text, 'send_msg_to_user("2.56 - 649.99")')
         self.assertIsNone(decision.parse_error)
 
+    def test_shopping_order_spend_goal_rewrites_parse_failure_to_direct_answer(self) -> None:
+        observation = NormalizedObservation(
+            goal="How much I spent on food-related shopping during March 2023",
+            current_url="http://3.14.148.71:7770/sales/order/history/",
+            open_tabs=[
+                OpenTab(
+                    title="My Orders",
+                    url="http://3.14.148.71:7770/sales/order/history/",
+                )
+            ],
+            visible_page_summary=(
+                "Customer order spend context: category=food-related | matched_orders=2\n"
+                "Customer order spend row: order=000000180 | date=3/11/23 | product=Jiffy Corn Muffin Cornbread Mix | price=$11.43\n"
+                "Customer order spend row: order=000000166 | date=3/10/23 | product=Kosher MRE Meat Meals Ready to Eat | price=$12.99"
+            ),
+            dom_or_ax_snippet='[1415] role=gridcell name="000000180"\n[1426] role=gridcell name="000000166"',
+            previous_actions=[],
+            previous_errors=[],
+        )
+        backend = FakeBackend(['ACTION: click("1415")'])
+        policy = QwenPolicy(backend=backend, config=self.config)
+
+        decision = policy.act(observation, step_idx=0)
+
+        self.assertEqual(decision.action_text, 'send_msg_to_user("24.42")')
+        self.assertIsNone(decision.parse_error)
+
+    def test_shopping_order_spend_goal_rewrites_wrong_final_answer(self) -> None:
+        observation = NormalizedObservation(
+            goal="How much I spent on food-related shopping during March 2023",
+            current_url="http://3.14.148.71:7770/sales/order/history/",
+            open_tabs=[
+                OpenTab(
+                    title="My Orders",
+                    url="http://3.14.148.71:7770/sales/order/history/",
+                )
+            ],
+            visible_page_summary=(
+                "Customer order spend context: category=food-related | matched_orders=2\n"
+                "Customer order spend row: order=000000180 | date=3/11/23 | product=Jiffy Corn Muffin Cornbread Mix | price=$11.43\n"
+                "Customer order spend row: order=000000166 | date=3/10/23 | product=Kosher MRE Meat Meals Ready to Eat | price=$12.99"
+            ),
+            dom_or_ax_snippet='[1415] role=gridcell name="000000180"\n[1426] role=gridcell name="000000166"',
+            previous_actions=[],
+            previous_errors=[],
+        )
+        backend = FakeBackend(['ACTION: send_msg_to_user("N/A")'])
+        policy = QwenPolicy(backend=backend, config=self.config)
+
+        decision = policy.act(observation, step_idx=0)
+
+        self.assertEqual(decision.action_text, 'send_msg_to_user("24.42")')
+        self.assertIsNone(decision.parse_error)
+
     def test_reddit_repeated_searchbox_click_rewrites_to_forum_fill(self) -> None:
         observation = NormalizedObservation(
             goal=(

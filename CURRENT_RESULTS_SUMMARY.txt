@@ -24,6 +24,9 @@ Current cross-site bootstrap stack
 - Baseline bootstrap41 score: 12/41 = 0.292683
 - Current bootstrap41 score: 36/41 = 0.878049
 
+Current shopping order-spend probes
+- Task 144 score: 1/1 = 1.000000
+
 Log files to see improvements
 - outputs/qwen_shopping_exact_curriculum_v1/family_summary.json
 - outputs/qwen_shopping_exact_current_stack_summary.json
