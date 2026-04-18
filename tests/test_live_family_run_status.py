@@ -150,6 +150,11 @@ class LiveFamilyRunStatusTests(unittest.TestCase):
         self.assertEqual(status["baseline_metrics"]["completed_task_count"], 2)
         self.assertEqual(status["baseline_metrics"]["success_task_count"], 1)
         self.assertEqual(status["baseline_metrics"]["average_success_rate"], 0.5)
+        self.assertEqual(status["baseline_metrics"]["benchmark_blockers"], [204])
+        self.assertEqual(status["baseline_metrics"]["effective_completed_task_count_excluding_blockers"], 2)
+        self.assertEqual(status["baseline_metrics"]["effective_success_task_count_excluding_blockers"], 1)
+        self.assertEqual(status["baseline_metrics"]["effective_average_success_rate_excluding_blockers"], 0.5)
+        self.assertEqual(status["baseline_metrics"]["effective_unresolved_task_ids_excluding_blockers"], [96])
         self.assertEqual(
             status["baseline_metrics"]["per_task_success_rate"],
             {"96": 0.0, "128": 1.0},
@@ -350,8 +355,63 @@ class LiveFamilyRunStatusTests(unittest.TestCase):
         self.assertEqual(status["grpo_training"]["checkpoint_count"], 1)
         self.assertEqual(status["warmup_eval"]["eval"]["completed_task_ids"], [128])
         self.assertEqual(status["warmup_eval"]["metrics"]["average_success_rate"], 1.0)
+        self.assertEqual(status["warmup_eval"]["metrics"]["benchmark_blockers"], [204])
+        self.assertEqual(status["warmup_eval"]["metrics"]["effective_average_success_rate_excluding_blockers"], 1.0)
         self.assertEqual(status["grpo_eval"]["eval"]["completed_task_ids"], [96])
+        self.assertEqual(status["grpo_eval"]["metrics"]["benchmark_blockers"], [204])
+        self.assertEqual(status["grpo_eval"]["metrics"]["effective_average_success_rate_excluding_blockers"], 0.0)
         self.assertEqual(status["grpo_eval"]["task_groups"]["judge_gated"]["completed_task_ids"], [96])
+
+    def test_excludes_known_benchmark_blockers_from_effective_eval_metrics(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            out_dir = Path(tmp_dir)
+            (out_dir / "split_manifest.json").write_text(
+                json.dumps(
+                    {
+                        "family_name": "bootstrap41",
+                        "split_preview": {
+                            "task_ids": [124, 125, 133, 141],
+                            "training_task_count": 33,
+                            "holdout_task_count": 8,
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            baseline_blocker = out_dir / "eval_baseline" / "task_0124"
+            baseline_blocker.mkdir(parents=True)
+            (baseline_blocker / "metrics.json").write_text(json.dumps({"success_rate": 0.0}), encoding="utf-8")
+            baseline_success = out_dir / "eval_baseline" / "task_0125"
+            baseline_success.mkdir(parents=True)
+            (baseline_success / "metrics.json").write_text(json.dumps({"success_rate": 1.0}), encoding="utf-8")
+
+            warmup_blocker = out_dir / "eval_warmup" / "task_0141"
+            warmup_blocker.mkdir(parents=True)
+            (warmup_blocker / "metrics.json").write_text(json.dumps({"success_rate": 0.0}), encoding="utf-8")
+            warmup_success = out_dir / "eval_warmup" / "task_0125"
+            warmup_success.mkdir(parents=True)
+            (warmup_success / "metrics.json").write_text(json.dumps({"success_rate": 1.0}), encoding="utf-8")
+
+            grpo_blocker = out_dir / "eval_grpo" / "task_0133"
+            grpo_blocker.mkdir(parents=True)
+            (grpo_blocker / "metrics.json").write_text(json.dumps({"success_rate": 0.0}), encoding="utf-8")
+            grpo_success = out_dir / "eval_grpo" / "task_0125"
+            grpo_success.mkdir(parents=True)
+            (grpo_success / "metrics.json").write_text(json.dumps({"success_rate": 1.0}), encoding="utf-8")
+
+            status = build_live_family_run_status(out_dir)
+
+        self.assertEqual(status["baseline_metrics"]["benchmark_blockers"], [124, 133, 141])
+        self.assertEqual(status["baseline_metrics"]["average_success_rate"], 0.5)
+        self.assertEqual(status["baseline_metrics"]["effective_completed_task_count_excluding_blockers"], 1)
+        self.assertEqual(status["baseline_metrics"]["effective_success_task_count_excluding_blockers"], 1)
+        self.assertEqual(status["baseline_metrics"]["effective_average_success_rate_excluding_blockers"], 1.0)
+        self.assertEqual(status["baseline_metrics"]["effective_unresolved_task_ids_excluding_blockers"], [])
+        self.assertEqual(status["warmup_eval"]["metrics"]["benchmark_blockers"], [124, 133, 141])
+        self.assertEqual(status["warmup_eval"]["metrics"]["effective_average_success_rate_excluding_blockers"], 1.0)
+        self.assertEqual(status["grpo_eval"]["metrics"]["benchmark_blockers"], [124, 133, 141])
+        self.assertEqual(status["grpo_eval"]["metrics"]["effective_average_success_rate_excluding_blockers"], 1.0)
 
     def test_reports_complete_when_family_summary_exists(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:

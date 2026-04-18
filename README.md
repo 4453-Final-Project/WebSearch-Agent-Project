@@ -77,6 +77,7 @@ Latest larger-family signal on the executable `shopping_exact` curriculum:
 - warmup summaries now record `source_task_sample_counts`, `average_epoch_task_sample_counts`, and `task_sample_multipliers`, so oversample experiments leave behind concrete per-task supervised-mix evidence instead of only CLI flags
 - finished `family_summary.json` artifacts now also carry that `warmup_training_summary`, so the supervised-mix evidence survives at the same top level as baseline, warmup, and GRPO stage results
 - live run status now mirrors those warmup-mix fields too once `warmup_summary.json` exists, so oversample evidence becomes visible before the full family run finishes
+- live run status now also reports family-level `benchmark_blockers` plus blocker-excluded effective eval metrics, so in-flight runs like `v18` can show raw baseline progress alongside the "real" non-blocker progress without waiting for a separate blocker audit
 - the optional local quantized path is now wired too: `outputs/qwen_shopping_full_warmup_smoke_v2_qlora/` completed a real `bnb_4bit` warmup smoke on the WSL GPU stack
 - completed family runs now also emit `baseline_vs_warmup_audit.json`, `baseline_vs_grpo_audit.json`, and `warmup_vs_grpo_audit.json`, so stage regressions are saved automatically instead of requiring a separate manual audit pass
 - current quantized bootstrap baseline rerun to watch: `outputs/qwen_bootstrap41_curriculum_v6_qlora/`

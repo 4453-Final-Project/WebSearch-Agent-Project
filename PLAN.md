@@ -92,6 +92,7 @@ Use the existing BrowserGym/WebArena pipeline to improve a local model beyond it
 - warmup summaries now record `source_task_sample_counts`, `average_epoch_task_sample_counts`, and `task_sample_multipliers`, so future oversample tuning can be audited from saved artifacts instead of only from launcher flags
 - finished `family_summary.json` artifacts now also keep that `warmup_training_summary`, so future recipe audits can read supervised-mix evidence from the top-level family report
 - live run status now mirrors those warmup-mix fields too once `warmup_summary.json` exists, so oversample evidence becomes visible before the full family run finishes
+- live run status now also reports family-level `benchmark_blockers` plus blocker-excluded effective eval metrics, so active reruns like `v18` can separate known benchmark mismatches from real recipe regressions during baseline and later eval stages
 - current warmup-demo cleanup: generic scripted warmup policies now answer directly instead of prepending a redundant `goto(start_url)`, which removes a recurring `TargetClosedError` step from simple dashboard-style demos and should reduce needless supervision noise on tasks like bootstrap task `0`
 - completed family runs now auto-write baseline/warmup/GRPO stage-audit artifacts, so future tuning can read per-task and per-site regressions directly from the output dir instead of reconstructing them later
 

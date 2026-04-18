@@ -138,6 +138,15 @@ TASK_FAMILY_SPECS = {
     ),
 }
 
+KNOWN_BENCHMARK_BLOCKERS = {
+    "shopping_exact": (131,),
+    "shopping_full": (204,),
+    "bootstrap41": (124, 133, 141),
+    "bootstrap44": (124, 133, 141),
+    "web_mix88": (124, 133, 141, 204),
+    "web_mix91": (124, 133, 141, 204),
+}
+
 
 def list_task_family_names() -> list[str]:
     return sorted(TASK_FAMILY_SPECS)
@@ -152,6 +161,11 @@ def get_task_family_spec(name: str) -> TaskFamilySpec:
 
 def family_requires_openai_judge(name: str) -> bool:
     return get_task_family_spec(name).requires_openai_judge
+
+
+def get_family_known_benchmark_blockers(name: str) -> tuple[int, ...]:
+    get_task_family_spec(name)
+    return KNOWN_BENCHMARK_BLOCKERS.get(name, ())
 
 
 def get_family_task_groups(name: str) -> dict[str, tuple[int, ...]]:

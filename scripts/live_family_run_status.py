@@ -16,7 +16,7 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from scripts.json_io import write_json_atomic  # noqa: E402
-from src.training.task_families import get_family_task_groups  # noqa: E402
+from src.training.task_families import get_family_known_benchmark_blockers, get_family_task_groups  # noqa: E402
 
 NON_MONITORING_METADATA_FILENAMES = {
     "live_status.json",
@@ -514,6 +514,47 @@ def _summarize_completed_eval_metrics(root: Path) -> dict[str, object]:
     }
 
 
+def _with_benchmark_blocker_metrics(
+    metrics: dict[str, object],
+    *,
+    family_name: str | None,
+) -> dict[str, object]:
+    if not isinstance(family_name, str):
+        metrics = dict(metrics)
+        metrics["benchmark_blockers"] = []
+        return metrics
+
+    benchmark_blockers = sorted(get_family_known_benchmark_blockers(family_name))
+    metrics = dict(metrics)
+    metrics["benchmark_blockers"] = benchmark_blockers
+    per_task_success_rate = metrics.get("per_task_success_rate", {})
+    if not isinstance(per_task_success_rate, dict):
+        return metrics
+
+    blocker_set = {str(task_id) for task_id in benchmark_blockers}
+    filtered = {
+        str(task_id): float(value)
+        for task_id, value in per_task_success_rate.items()
+        if str(task_id) not in blocker_set
+    }
+    if not filtered:
+        metrics["effective_completed_task_count_excluding_blockers"] = 0
+        metrics["effective_average_success_rate_excluding_blockers"] = 0.0
+        metrics["effective_success_task_count_excluding_blockers"] = 0
+        metrics["effective_unresolved_task_ids_excluding_blockers"] = []
+        return metrics
+
+    filtered_values = list(filtered.values())
+    metrics["effective_completed_task_count_excluding_blockers"] = len(filtered)
+    metrics["effective_average_success_rate_excluding_blockers"] = sum(filtered_values) / len(filtered_values)
+    metrics["effective_success_task_count_excluding_blockers"] = sum(1 for value in filtered_values if value >= 1.0)
+    metrics["effective_unresolved_task_ids_excluding_blockers"] = sorted(
+        (int(task_id) for task_id, value in filtered.items() if value < 1.0),
+        key=int,
+    )
+    return metrics
+
+
 def _summarize_completed_eval_task_groups(
     per_task_success_rate: dict[str, float],
     *,
@@ -678,7 +719,10 @@ def _summarize_eval_stage(
     split_preview: dict[str, object],
 ) -> dict[str, object]:
     eval_status = _count_task_dir_status(root, summary_name="metrics.json")
-    metrics = _summarize_completed_eval_metrics(root)
+    metrics = _with_benchmark_blocker_metrics(
+        _summarize_completed_eval_metrics(root),
+        family_name=family_name,
+    )
     return {
         "eval": eval_status,
         "metrics": metrics,
@@ -733,7 +777,10 @@ def build_live_family_run_status(out_dir: Path) -> dict[str, object]:
         split_preview=split_preview,
     )
     baseline_eval = _count_task_dir_status(out_dir / "eval_baseline", summary_name="metrics.json")
-    baseline_metrics = _summarize_completed_eval_metrics(out_dir / "eval_baseline")
+    baseline_metrics = _with_benchmark_blocker_metrics(
+        _summarize_completed_eval_metrics(out_dir / "eval_baseline"),
+        family_name=family_name,
+    )
     baseline_task_groups = _summarize_completed_eval_task_groups(
         family_name=family_name,
         per_task_success_rate=baseline_metrics["per_task_success_rate"],

@@ -14,6 +14,7 @@ from scripts.run_family_curriculum import _load_split_from_manifest
 from src.training.task_families import (
     build_task_split,
     family_requires_openai_judge,
+    get_family_known_benchmark_blockers,
     get_family_task_groups,
     recommend_task_split,
 )
@@ -215,6 +216,15 @@ class TaskFamiliesTests(unittest.TestCase):
         self.assertEqual(len(task_groups["site_reddit"]), 9)
         self.assertEqual(len(task_groups["site_gitlab"]), 7)
         self.assertEqual(len(task_groups["site_map"]), 7)
+
+    def test_known_benchmark_blockers_are_reported_for_current_families(self) -> None:
+        self.assertEqual(get_family_known_benchmark_blockers("shopping_exact"), (131,))
+        self.assertEqual(get_family_known_benchmark_blockers("shopping_full"), (204,))
+        self.assertEqual(get_family_known_benchmark_blockers("bootstrap41"), (124, 133, 141))
+        self.assertEqual(get_family_known_benchmark_blockers("bootstrap44"), (124, 133, 141))
+        self.assertEqual(get_family_known_benchmark_blockers("web_mix88"), (124, 133, 141, 204))
+        self.assertEqual(get_family_known_benchmark_blockers("web_mix91"), (124, 133, 141, 204))
+        self.assertEqual(get_family_known_benchmark_blockers("shopping_order"), ())
 
     def test_recommended_full_order_split_uses_large_training_pool(self) -> None:
         split = recommend_task_split("shopping_order_full", split_seed=11)
