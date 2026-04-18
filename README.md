@@ -56,6 +56,7 @@ Latest larger-family signal on the executable `shopping_exact` curriculum:
 - stale quantized GitLab-budget note: `outputs/qwen_bootstrap41_curriculum_v15_qlora_gitlabsteps_cleandemos/` also started before the targeted GitLab-coverage bump landed, so it is now mainly a pre-GitLab-coverage comparison point
 - current quantized GitLab-coverage rerun to watch: `outputs/qwen_bootstrap41_curriculum_v16_qlora_gitlabcoverage/`, which keeps the same checked-in `bootstrap41` split, `bnb_4bit` step-weight recipe, and `site_gitlab=8` budget but now also gives the GitLab slice extra warmup-demo episodes, extra warmup-demo retention, and extra GRPO rollout groups
 - next mixed-family scale-up path is ready too: `scripts/local/run_qwen_web_mix88_curriculum_qlora_tmux.sh` now launches a detached `bnb_4bit` `web_mix88` run on the checked-in 88-task split, so if `bootstrap41` finally shows training lift we can promote the same recipe onto the larger mixed family without ad hoc shell work
+- the matched mixed-family GitLab-coverage variant is ready too: `scripts/local/run_qwen_web_mix88_curriculum_qlora_gitlabcoverage_tmux.sh` carries the same GitLab budget and coverage bump as `v16`, so the first `web_mix88` promotion path does not fall back to the weaker mixed-family baseline launcher
 - the optional local quantized path is now wired too: `outputs/qwen_shopping_full_warmup_smoke_v2_qlora/` completed a real `bnb_4bit` warmup smoke on the WSL GPU stack
 - current quantized bootstrap baseline rerun to watch: `outputs/qwen_bootstrap41_curriculum_v6_qlora/`
 - stale quantized step-weight note: `outputs/qwen_bootstrap41_curriculum_v9_qlora_stepweight_dashboardfix/` started before the task-`41` popularity fix and is now mainly a pre-searchterm-fix comparison point
@@ -114,6 +115,7 @@ For the GitLab-budget comparison variant, use `scripts/local/run_qwen_bootstrap4
 For the cleaned-demo GitLab-budget comparison variant, use `scripts/local/run_qwen_bootstrap41_curriculum_qlora_gitlabsteps_cleandemos_tmux.sh` or `.ps1`.
 For the GitLab-coverage comparison variant, use `scripts/local/run_qwen_bootstrap41_curriculum_qlora_gitlabcoverage_tmux.sh` or `.ps1`.
 For the detached mixed-family QLoRA scale-up path, use `scripts/local/run_qwen_web_mix88_curriculum_qlora_tmux.sh` or `.ps1`.
+For the mixed-family GitLab-coverage variant, use `scripts/local/run_qwen_web_mix88_curriculum_qlora_gitlabcoverage_tmux.sh` or `.ps1`.
 
 ## Setup
 
