@@ -11,12 +11,18 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from scripts.build_family_override_summary import _load_run_provenance  # noqa: E402
+from scripts.audit_expanded_family_stage_scorecard import (  # noqa: E402
+    audit_expanded_family_stage_scorecard,
+)
 from scripts.json_io import write_json_atomic  # noqa: E402
 from scripts.merge_family_reevals import load_json, parse_override_spec  # noqa: E402
 from scripts.run_family_curriculum import (  # noqa: E402
     _build_family_metadata,
     _build_stage_summary,
     _load_split_from_manifest,
+)
+from scripts.validate_expanded_family_stage_scorecard import (  # noqa: E402
+    validate_expanded_family_stage_scorecard,
 )
 from src.training.task_families import get_family_task_groups  # noqa: E402
 
@@ -32,6 +38,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--override", action="append", default=[], metavar="TASK_ID=METRICS_JSON")
     parser.add_argument("--benchmark-blocker", action="append", default=[], metavar="TASK_ID")
     parser.add_argument("--out", type=Path, required=True)
+    parser.add_argument("--audit-out", type=Path, default=None)
     return parser
 
 
@@ -122,6 +129,26 @@ def build_expanded_family_stage_scorecard(
     return result
 
 
+def validate_and_audit_expanded_family_stage_scorecard(
+    scorecard: dict[str, object],
+    *,
+    benchmark_blockers: list[str] | tuple[str, ...] = (),
+) -> tuple[list[str], dict[str, object], dict[str, object] | None]:
+    errors, derived = validate_expanded_family_stage_scorecard(
+        scorecard,
+        benchmark_blockers=benchmark_blockers,
+    )
+    if errors:
+        return errors, derived, None
+    audit_errors, audit_report = audit_expanded_family_stage_scorecard(
+        scorecard,
+        benchmark_blockers=benchmark_blockers,
+    )
+    if audit_errors:
+        return audit_errors, derived, None
+    return [], derived, audit_report
+
+
 def main() -> int:
     args = build_arg_parser().parse_args()
     overrides = dict(parse_override_spec(spec) for spec in args.override)
@@ -133,19 +160,30 @@ def main() -> int:
         overrides=overrides,
         benchmark_blockers=args.benchmark_blocker,
     )
-    write_json_atomic(args.out, scorecard)
-    print(
-        json.dumps(
-            {
-                "out": str(args.out),
-                "label": args.label,
-                "family_name": scorecard["family_name"],
-                "family_success_rate": scorecard[args.label]["family_success_rate"],
-            },
-            indent=2,
-            sort_keys=True,
-        )
+    errors, derived, audit_report = validate_and_audit_expanded_family_stage_scorecard(
+        scorecard,
+        benchmark_blockers=args.benchmark_blocker,
     )
+    payload = {
+        "ok": not errors,
+        "out": str(args.out),
+        "label": args.label,
+        "family_name": scorecard["family_name"],
+        "family_success_rate": scorecard[args.label]["family_success_rate"],
+        "derived": derived,
+    }
+    if args.audit_out is not None:
+        payload["audit_out"] = str(args.audit_out)
+    if errors:
+        payload["errors"] = errors
+        print(json.dumps(payload, indent=2, sort_keys=True))
+        return 1
+
+    write_json_atomic(args.out, scorecard)
+    if args.audit_out is not None and audit_report is not None:
+        audit_report["scorecard_path"] = str(args.out)
+        write_json_atomic(args.audit_out, audit_report)
+    print(json.dumps(payload, indent=2, sort_keys=True))
     return 0
 
 
