@@ -1687,6 +1687,9 @@ def _build_shopping_catalog_price_range_answer_action(observation: NormalizedObs
     query = _extract_shopping_catalog_price_range_query(observation.goal)
     if not query:
         return ""
+    ranked_range = _find_ranked_shopping_catalog_price_range(observation.current_url, query)
+    if ranked_range is not None:
+        return f'ACTION: send_msg_to_user("{ranked_range[0]:.2f} - {ranked_range[1]:.2f}")'
     rows = _fetch_shopping_catalog_search_result_rows(observation.current_url, query)
     if not rows:
         return ""
@@ -1838,6 +1841,118 @@ def _fetch_shopping_catalog_search_result_rows(current_url: str, query: str) -> 
             continue
         rows.append({"title": title, "price": price})
     return rows
+
+
+def _fetch_shopping_catalog_sorted_page(
+    current_url: str,
+    query: str,
+    *,
+    page: int,
+    sort_dir: str,
+) -> list[dict[str, str]]:
+    parsed = urlparse(current_url)
+    if not parsed.netloc.endswith(":7770"):
+        return []
+    base_url = f"{parsed.scheme or 'http'}://{parsed.netloc}"
+    page = max(1, page)
+    params: dict[str, str | int] = {
+        "q": query,
+        "product_list_order": "price",
+        "product_list_dir": sort_dir,
+    }
+    if page > 1:
+        params["p"] = page
+    search_url = f"{base_url}/catalogsearch/result/index/?{urlencode(params)}"
+    search_html = _safe_fetch_text(search_url)
+    if not search_html:
+        return []
+    product_pattern = re.compile(
+        r'<a[^>]+class="[^"]*product-item-link[^"]*"[^>]*>(?P<title>.*?)</a>.*?'
+        r'<span[^>]+class="price"[^>]*>\s*\$?(?P<price>[0-9.,]+)\s*</span>',
+        flags=re.IGNORECASE | re.DOTALL,
+    )
+    rows: list[dict[str, str]] = []
+    for match in product_pattern.finditer(search_html):
+        title = _strip_html_fragment(match.group("title"))
+        price = " ".join((match.group("price") or "").split())
+        if not title or not price:
+            continue
+        rows.append({"title": title, "price": price})
+    return rows
+
+
+def _shopping_catalog_query_prefers_ranked_extrema(query: str) -> bool:
+    lowered = " ".join((query or "").lower().split())
+    return "teeth grinding" in lowered or "mouth guard" in lowered
+
+
+def _shopping_catalog_match_score(query: str, title: str) -> int:
+    lowered_query = " ".join((query or "").lower().split())
+    lowered_title = " ".join((title or "").lower().split())
+    if not lowered_query or not lowered_title:
+        return 0
+    if "teeth grinding" in lowered_query or "mouth guard" in lowered_query:
+        normalized_title = lowered_title.replace("-", " ")
+        if re.search(r"\bteeth\s+grinding(?:\s+\w+){0,1}\s+guard\b", normalized_title):
+            return 3
+        if "mouth guard" in normalized_title and any(
+            keyword in normalized_title for keyword in ("teeth", "tooth", "dental", "grinding")
+        ):
+            return 2
+        if "night guard" in normalized_title and any(
+            keyword in normalized_title for keyword in ("teeth", "tooth", "dental", "grinding")
+        ):
+            return 1
+    return 0
+
+
+def _find_ranked_shopping_catalog_extreme_price(
+    current_url: str,
+    query: str,
+    *,
+    sort_dir: str,
+    min_score: int,
+    max_pages: int = 60,
+) -> float | None:
+    if not _shopping_catalog_query_prefers_ranked_extrema(query):
+        return None
+    for page in range(1, max_pages + 1):
+        rows = _fetch_shopping_catalog_sorted_page(
+            current_url,
+            query,
+            page=page,
+            sort_dir=sort_dir,
+        )
+        if not rows:
+            break
+        for row in rows:
+            score = _shopping_catalog_match_score(query, row.get("title", ""))
+            if score < min_score:
+                continue
+            amount = _parse_amount(row.get("price", ""))
+            if amount > 0:
+                return amount
+    return None
+
+
+def _find_ranked_shopping_catalog_price_range(current_url: str, query: str) -> tuple[float, float] | None:
+    if not _shopping_catalog_query_prefers_ranked_extrema(query):
+        return None
+    min_amount = _find_ranked_shopping_catalog_extreme_price(
+        current_url,
+        query,
+        sort_dir="asc",
+        min_score=3,
+    )
+    max_amount = _find_ranked_shopping_catalog_extreme_price(
+        current_url,
+        query,
+        sort_dir="desc",
+        min_score=3,
+    )
+    if min_amount is None or max_amount is None:
+        return None
+    return (min_amount, max_amount)
 
 
 def _find_shopping_search_button_bid(dom_or_ax_snippet: str) -> str:

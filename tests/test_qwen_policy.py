@@ -719,6 +719,112 @@ class QwenPolicyTests(unittest.TestCase):
         self.assertEqual(decision.action_text, 'send_msg_to_user("2.56 - 649.99")')
         self.assertIsNone(decision.parse_error)
 
+    @patch("src.agent.qwen_policy.requests.get")
+    def test_shopping_catalog_price_range_goal_uses_ranked_extrema_for_mouth_guard_query(self, mock_get) -> None:
+        def _response_for_url(target_url: str, timeout: int = 5) -> Mock:
+            from urllib.parse import parse_qs, urlparse
+
+            parsed = urlparse(target_url)
+            params = parse_qs(parsed.query)
+            page = int(params.get("p", ["1"])[0])
+            sort_dir = params.get("product_list_dir", [""])[0]
+            if sort_dir == "asc":
+                if page < 5:
+                    text = (
+                        '<a class="product-item-link">Generic Dental Cleaner</a>'
+                        '<span class="price">$0.01</span>'
+                    )
+                else:
+                    text = (
+                        '<a class="product-item-link">AKwell Anti Teeth-Grinding Dental Guard-Ready to use</a>'
+                        '<span class="price">$1.46</span>'
+                    )
+            elif sort_dir == "desc":
+                if page < 43:
+                    text = (
+                        '<a class="product-item-link">Custom Dental Night Guard for Teeth Grinding</a>'
+                        '<span class="price">$179.99</span>'
+                    )
+                else:
+                    text = (
+                        '<a class="product-item-link">Custom Soft Teeth Grinding Guard</a>'
+                        '<span class="price">$85.00</span>'
+                    )
+            else:
+                text = ""
+            return Mock(ok=True, text=text)
+
+        mock_get.side_effect = _response_for_url
+        observation = NormalizedObservation(
+            goal="What is the price range of teeth grinding mouth guard in the One Stop Market?",
+            current_url="http://3.14.148.71:7770/",
+            open_tabs=[OpenTab(title="One Stop Market", url="http://3.14.148.71:7770/")],
+            visible_page_summary="One Stop Market homepage",
+            dom_or_ax_snippet='[274] role=combobox name="Search" clickable\n[277] role=button name="Search"',
+            previous_actions=[],
+            previous_errors=[],
+        )
+        backend = FakeBackend(['ACTION: fill("teeth grinding mouth guard price range")'])
+        policy = QwenPolicy(backend=backend, config=self.config)
+
+        decision = policy.act(observation, step_idx=0)
+
+        self.assertEqual(decision.action_text, 'send_msg_to_user("1.46 - 85.00")')
+        self.assertIsNone(decision.parse_error)
+
+    @patch("src.agent.qwen_policy.requests.get")
+    def test_shopping_catalog_price_range_goal_rewrites_wrong_final_answer_with_ranked_extrema(self, mock_get) -> None:
+        def _response_for_url(target_url: str, timeout: int = 5) -> Mock:
+            from urllib.parse import parse_qs, urlparse
+
+            parsed = urlparse(target_url)
+            params = parse_qs(parsed.query)
+            page = int(params.get("p", ["1"])[0])
+            sort_dir = params.get("product_list_dir", [""])[0]
+            if sort_dir == "asc":
+                if page < 5:
+                    text = (
+                        '<a class="product-item-link">Generic Dental Cleaner</a>'
+                        '<span class="price">$0.01</span>'
+                    )
+                else:
+                    text = (
+                        '<a class="product-item-link">AKwell Anti Teeth-Grinding Dental Guard-Ready to use</a>'
+                        '<span class="price">$1.46</span>'
+                    )
+            elif sort_dir == "desc":
+                if page < 43:
+                    text = (
+                        '<a class="product-item-link">Custom Dental Night Guard for Teeth Grinding</a>'
+                        '<span class="price">$179.99</span>'
+                    )
+                else:
+                    text = (
+                        '<a class="product-item-link">Custom Soft Teeth Grinding Guard</a>'
+                        '<span class="price">$85.00</span>'
+                    )
+            else:
+                text = ""
+            return Mock(ok=True, text=text)
+
+        mock_get.side_effect = _response_for_url
+        observation = NormalizedObservation(
+            goal="What is the price range of teeth grinding mouth guard in the One Stop Market?",
+            current_url="http://3.14.148.71:7770/",
+            open_tabs=[OpenTab(title="One Stop Market", url="http://3.14.148.71:7770/")],
+            visible_page_summary="One Stop Market homepage",
+            dom_or_ax_snippet='[274] role=combobox name="Search" clickable\n[277] role=button name="Search"',
+            previous_actions=[],
+            previous_errors=[],
+        )
+        backend = FakeBackend(['ACTION: send_msg_to_user("N/A")'])
+        policy = QwenPolicy(backend=backend, config=self.config)
+
+        decision = policy.act(observation, step_idx=0)
+
+        self.assertEqual(decision.action_text, 'send_msg_to_user("1.46 - 85.00")')
+        self.assertIsNone(decision.parse_error)
+
     def test_shopping_order_spend_goal_rewrites_parse_failure_to_direct_answer(self) -> None:
         observation = NormalizedObservation(
             goal="How much I spent on food-related shopping during March 2023",
