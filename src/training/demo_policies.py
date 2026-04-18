@@ -261,12 +261,7 @@ def get_scripted_warmup_policy(task_id: int) -> ScriptedActionSequencePolicy:
 
     start_url = _expand_tokens(str(task.get("start_url", "")), env.token_mapping())
     answer = _resolve_reference_answer(task, env.token_mapping())
-    actions = []
-    if start_url:
-        first_start_url = start_url.split(" |AND| ")[0].strip()
-        if first_start_url:
-            actions.append(f'goto("{first_start_url}")')
-    actions.append(f'send_msg_to_user("{_escape_action_string(answer)}")')
+    actions = [f'send_msg_to_user("{_escape_action_string(answer)}")']
     return ScriptedActionSequencePolicy(policy_name=f"scripted-task{task_id}-warmup", actions=actions)
 
 

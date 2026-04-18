@@ -16,6 +16,7 @@ from src.training.demo_policies import (
     ShoppingSearchSortDemoPolicy,
     _build_shopping_order_policy,
     _shopping_order_detail_requires_view_page,
+    get_scripted_warmup_policy,
 )
 from src.training import demo_policies
 from src.utils import config as config_module
@@ -127,6 +128,29 @@ class DemoPoliciesTests(unittest.TestCase):
 
             self.assertEqual(env.shopping_url, "http://example-shopping")
             self.assertEqual(env.shopping_admin_url, "http://example-admin/admin")
+
+    def test_generic_scripted_policy_answers_directly_without_redundant_goto(self) -> None:
+        task = {
+            "task_id": 0,
+            "start_url": "__SHOPPING_ADMIN__/admin/dashboard/",
+            "eval": {"reference_answer_raw_annotation": "Quest Lumaflex™ Band"},
+        }
+
+        env = DemoEnvironment(
+            shopping_url="http://example-shopping",
+            shopping_admin_url="http://example-admin/admin",
+            reddit_url="http://example-reddit",
+            gitlab_url="http://example-gitlab",
+            wikipedia_url="http://example-wiki",
+            map_url="http://example-map",
+            homepage_url="http://example-home",
+        )
+
+        with mock.patch.object(demo_policies, "DemoEnvironment", return_value=env):
+            with mock.patch.object(demo_policies, "_load_task", return_value=task):
+                policy = get_scripted_warmup_policy(0)
+
+        self.assertEqual(policy.actions, ['send_msg_to_user("Quest Lumaflex™ Band")'])
 
 
 if __name__ == "__main__":
