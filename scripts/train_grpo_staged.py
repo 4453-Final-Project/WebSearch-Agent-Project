@@ -72,10 +72,22 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--model-path", default=None)
     parser.add_argument("--warmup-demo-dir", action="append", default=[])
     parser.add_argument("--warmup-demo-limit-per-task", type=int, default=5)
+    parser.add_argument(
+        "--warmup-demo-limit-override",
+        action="append",
+        default=[],
+        help="Optional per-task warmup-demo limits like 133=8. Repeat to set multiple tasks.",
+    )
     parser.add_argument("--warmup-epochs", type=int, default=1)
     parser.add_argument("--warmup-batch-size", type=int, default=1)
     parser.add_argument("--warmup-gradient-accumulation-steps", type=int, default=4)
     parser.add_argument("--groups-per-task", type=int, default=5)
+    parser.add_argument(
+        "--task-groups-per-task",
+        action="append",
+        default=[],
+        help="Optional per-task rollout group overrides like 133=8. Repeat to set multiple tasks.",
+    )
     parser.add_argument("--group-size", type=int, default=2)
     parser.add_argument("--iterations", type=int, default=1)
     parser.add_argument("--ppo-epochs", type=int, default=2)
@@ -140,7 +152,12 @@ def main() -> int:
 
 
 def _run_warmup(args, out_dir: Path) -> int:
-    trajectories = _select_warmup_trajectories(args.warmup_demo_dir, args.warmup_task_ids, args.warmup_demo_limit_per_task)
+    trajectories = _select_warmup_trajectories(
+        args.warmup_demo_dir,
+        args.warmup_task_ids,
+        args.warmup_demo_limit_per_task,
+        per_task_limits=_resolve_warmup_demo_limits(args),
+    )
     policy = _build_policy(args, model_path=str(_resolve_stage_model_path(args)))
     warmup_metrics = run_supervised_warmup(
         policy,
@@ -178,13 +195,16 @@ def _run_collect(args, out_dir: Path) -> int:
     root_dir = out_dir / "rollouts" / "iteration_0000"
     root_dir.mkdir(parents=True, exist_ok=True)
     task_max_steps = _resolve_task_max_steps(args)
+    task_groups_per_task = _resolve_task_groups_per_task(args)
 
     summaries: list[dict[str, object]] = []
     base_seed = args.seed
+    group_offset = 0
     for task_offset, task_id in enumerate(args.task_ids):
-        for group_local_idx in range(args.groups_per_task):
+        task_group_count = task_groups_per_task.get(task_id, args.groups_per_task)
+        for group_local_idx in range(task_group_count):
             for member_idx in range(args.group_size):
-                group_idx = task_offset * args.groups_per_task + group_local_idx
+                group_idx = group_offset + group_local_idx
                 episode_seed = base_seed + (group_idx * 10) + member_idx
                 episode_dir = root_dir / f"task_{task_id}" / f"group_{group_local_idx:04d}" / f"episode_{member_idx:04d}"
                 if (episode_dir / "episode.json").exists():
@@ -213,6 +233,7 @@ def _run_collect(args, out_dir: Path) -> int:
                         "parse_failure_count": trajectory.parse_failure_count,
                     }
                 )
+        group_offset += task_group_count
 
     summary = {
         "stage": "collect",
@@ -223,6 +244,10 @@ def _run_collect(args, out_dir: Path) -> int:
         "success_count": sum(1 for item in summaries if item["success"]),
         "task_max_steps": {
             str(task_id): task_max_steps.get(task_id, args.max_steps)
+            for task_id in args.task_ids
+        },
+        "task_groups_per_task": {
+            str(task_id): task_groups_per_task.get(task_id, args.groups_per_task)
             for task_id in args.task_ids
         },
         "task_success_counts": {
@@ -240,7 +265,13 @@ def _run_grpo(args, out_dir: Path) -> int:
     policy = _build_policy(args, model_path=str(out_dir / "warmup_adapter"))
     trainer = GRPOTrainer(
         policy=policy,
-        collector=_DiskCollector(out_dir / "rollouts" / "iteration_0000", args.task_ids, args.groups_per_task, args.group_size),
+        collector=_DiskCollector(
+            out_dir / "rollouts" / "iteration_0000",
+            args.task_ids,
+            args.groups_per_task,
+            args.group_size,
+            task_groups_per_task=_resolve_task_groups_per_task(args),
+        ),
         reward_config=_build_reward_config(args),
         config=GRPOConfig(
             iterations=args.iterations,
@@ -457,35 +488,60 @@ def _resolve_task_max_steps(args) -> dict[int, int]:
         return {}
     if isinstance(raw_value, dict):
         return {int(task_id): int(max_steps) for task_id, max_steps in raw_value.items()}
-    return _parse_step_override_entries(raw_value, subject_name="task id")
+    return _parse_positive_override_entries(raw_value, subject_name="task id")
 
 
-def _parse_step_override_entries(entries: list[str], *, subject_name: str) -> dict[int, int]:
+def _resolve_warmup_demo_limits(args) -> dict[int, int]:
+    raw_value = getattr(args, "warmup_demo_limit_override", None)
+    if not raw_value:
+        return {}
+    if isinstance(raw_value, dict):
+        return {int(task_id): int(limit) for task_id, limit in raw_value.items()}
+    return _parse_positive_override_entries(raw_value, subject_name="task id")
+
+
+def _resolve_task_groups_per_task(args) -> dict[int, int]:
+    raw_value = getattr(args, "task_groups_per_task", None)
+    if not raw_value:
+        return {}
+    if isinstance(raw_value, dict):
+        return {int(task_id): int(group_count) for task_id, group_count in raw_value.items()}
+    return _parse_positive_override_entries(raw_value, subject_name="task id")
+
+
+def _parse_positive_override_entries(entries: list[str], *, subject_name: str) -> dict[int, int]:
     overrides: dict[int, int] = {}
     for entry in entries:
         if "=" not in entry:
-            raise ValueError(f"Invalid {subject_name} step override {entry!r}; expected NAME=STEPS.")
+            raise ValueError(f"Invalid {subject_name} override {entry!r}; expected NAME=VALUE.")
         name_text, value_text = entry.split("=", 1)
         try:
             name = int(name_text.strip())
             value = int(value_text.strip())
         except ValueError as exc:
             raise ValueError(
-                f"Invalid {subject_name} step override {entry!r}; both sides must be integers."
+                f"Invalid {subject_name} override {entry!r}; both sides must be integers."
             ) from exc
         if value <= 0:
             raise ValueError(
-                f"Invalid {subject_name} step override {entry!r}; step count must be positive."
+                f"Invalid {subject_name} override {entry!r}; value must be positive."
             )
         overrides[name] = value
     return overrides
 
 
-def _select_warmup_trajectories(paths: list[str], task_ids: list[int], limit_per_task: int) -> list[EpisodeTrajectory]:
+def _select_warmup_trajectories(
+    paths: list[str],
+    task_ids: list[int],
+    limit_per_task: int,
+    *,
+    per_task_limits: dict[int, int] | None = None,
+) -> list[EpisodeTrajectory]:
     trajectories = load_demo_trajectories(paths, success_only=True)
     selected: list[EpisodeTrajectory] = []
     for task_id in task_ids:
-        selected.extend([trajectory for trajectory in trajectories if trajectory.task_id == task_id][:limit_per_task])
+        task_limit = (per_task_limits or {}).get(task_id, limit_per_task)
+        selected.extend([trajectory for trajectory in trajectories if trajectory.task_id == task_id][:task_limit])
     if not selected:
         raise RuntimeError("No warmup trajectories matched the requested task IDs.")
     return selected
@@ -504,16 +560,26 @@ def _write_json(path: Path, data: object) -> None:
 
 
 class _DiskCollector:
-    def __init__(self, root_dir: Path, task_ids: list[int], groups_per_task: int, group_size: int) -> None:
+    def __init__(
+        self,
+        root_dir: Path,
+        task_ids: list[int],
+        groups_per_task: int,
+        group_size: int,
+        *,
+        task_groups_per_task: dict[int, int] | None = None,
+    ) -> None:
         self.root_dir = root_dir
         self.task_ids = task_ids
         self.groups_per_task = groups_per_task
         self.group_size = group_size
+        self.task_groups_per_task = task_groups_per_task or {}
 
     def collect_iteration(self, policy, iteration_idx: int) -> list[list[EpisodeTrajectory]]:
         groups: list[list[EpisodeTrajectory]] = []
         for task_id in self.task_ids:
-            for group_local_idx in range(self.groups_per_task):
+            task_group_count = self.task_groups_per_task.get(task_id, self.groups_per_task)
+            for group_local_idx in range(task_group_count):
                 group: list[EpisodeTrajectory] = []
                 for member_idx in range(self.group_size):
                     episode_dir = self.root_dir / f"task_{task_id}" / f"group_{group_local_idx:04d}" / f"episode_{member_idx:04d}"

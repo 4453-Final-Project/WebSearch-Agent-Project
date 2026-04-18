@@ -13,13 +13,16 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from scripts.run_family_curriculum import (
+    _build_stage_args,
     _get_family_requirement_status,
+    _get_group_int_overrides,
     _get_group_step_overrides,
     _load_existing_eval_results,
     _load_partial_eval_results,
     _load_partial_eval_results_from_tree,
     _load_split_from_manifest,
     _prepare_warmup_demos,
+    _resolve_family_task_group_int_overrides,
     _resolve_family_task_group_step_overrides,
     _run_baseline_eval,
     _resolve_preflight_out_path,
@@ -64,8 +67,14 @@ class RunFamilyCurriculumTests(unittest.TestCase):
                 "0.07",
                 "--task-group-max-steps",
                 "site_gitlab=8",
+                "--task-group-groups-per-task",
+                "site_gitlab=4",
+                "--warmup-demo-task-group-episodes",
+                "site_gitlab=4",
                 "--warmup-demo-task-group-max-steps",
                 "site_gitlab=7",
+                "--warmup-demo-task-group-limit-per-task",
+                "site_gitlab=4",
             ]
         )
 
@@ -78,7 +87,10 @@ class RunFamilyCurriculumTests(unittest.TestCase):
         self.assertEqual(args.step_weight_error_step_multiplier, 0.3)
         self.assertEqual(args.step_weight_min, 0.07)
         self.assertEqual(args.task_group_max_steps, ["site_gitlab=8"])
+        self.assertEqual(args.task_group_groups_per_task, ["site_gitlab=4"])
+        self.assertEqual(args.warmup_demo_task_group_episodes, ["site_gitlab=4"])
         self.assertEqual(args.warmup_demo_task_group_max_steps, ["site_gitlab=7"])
+        self.assertEqual(args.warmup_demo_task_group_limit_per_task, ["site_gitlab=4"])
 
     def test_get_group_step_overrides_parses_cli_entries(self) -> None:
         args = build_arg_parser().parse_args(
@@ -94,6 +106,20 @@ class RunFamilyCurriculumTests(unittest.TestCase):
 
         self.assertEqual(overrides, {"site_gitlab": 8, "judge_gated": 6})
 
+    def test_get_group_int_overrides_parses_cli_entries(self) -> None:
+        args = build_arg_parser().parse_args(
+            [
+                "--task-group-groups-per-task",
+                "site_gitlab=4",
+                "--task-group-groups-per-task",
+                "judge_free=3",
+            ]
+        )
+
+        overrides = _get_group_int_overrides(args, "task_group_groups_per_task")
+
+        self.assertEqual(overrides, {"site_gitlab": 4, "judge_free": 3})
+
     def test_resolve_family_task_group_step_overrides_uses_max_matching_budget(self) -> None:
         overrides = _resolve_family_task_group_step_overrides(
             "bootstrap41",
@@ -106,6 +132,19 @@ class RunFamilyCurriculumTests(unittest.TestCase):
         self.assertEqual(overrides[132], 8)
         self.assertEqual(overrides[133], 8)
         self.assertEqual(overrides[134], 8)
+
+    def test_resolve_family_task_group_int_overrides_uses_max_matching_value(self) -> None:
+        overrides = _resolve_family_task_group_int_overrides(
+            "bootstrap41",
+            (21, 132, 133, 134),
+            default_value=2,
+            group_overrides={"site_gitlab": 4, "judge_free": 3},
+        )
+
+        self.assertEqual(overrides[21], 3)
+        self.assertEqual(overrides[132], 4)
+        self.assertEqual(overrides[133], 4)
+        self.assertEqual(overrides[134], 4)
 
     def test_resolve_preflight_out_path_uses_explicit_path(self) -> None:
         args = build_arg_parser().parse_args(["--preflight-out", "C:\\tmp\\preflight.json"])
@@ -430,6 +469,7 @@ class RunFamilyCurriculumTests(unittest.TestCase):
             reuse_existing_demos=False,
             seed=42,
             warmup_demo_episodes=2,
+            warmup_demo_task_group_episodes={"site_gitlab": 4},
             warmup_demo_max_steps=4,
             warmup_demo_task_group_max_steps={"site_gitlab": 8},
             headed=False,
@@ -444,6 +484,10 @@ class RunFamilyCurriculumTests(unittest.TestCase):
                 result = _prepare_warmup_demos(args, split, warmup_demo_dir)
 
         self.assertEqual(result, {"task_count": 2})
+        self.assertEqual(
+            collect_mock.call_args.kwargs["per_task_episodes"],
+            {132: 4},
+        )
         self.assertEqual(
             collect_mock.call_args.kwargs["per_task_max_steps"],
             {132: 8},
@@ -571,6 +615,8 @@ class RunFamilyCurriculumTests(unittest.TestCase):
                 max_new_tokens=64,
                 eval_temperature=0.0,
                 task_group_max_steps={"judge_free": 8},
+                task_group_groups_per_task={"site_gitlab": 4},
+                warmup_demo_task_group_limit_per_task={"site_gitlab": 4},
                 seed=42,
                 max_steps=4,
                 eval_episodes=2,
@@ -595,6 +641,32 @@ class RunFamilyCurriculumTests(unittest.TestCase):
                     "102": {"success_rate": 1.0},
                 },
             )
+
+    def test_build_stage_args_applies_group_specific_group_counts_and_demo_limits(self) -> None:
+        split = TaskSplit(
+            family_name="bootstrap41",
+            task_ids=(21, 132, 134),
+            warmup_task_ids=(21, 132),
+            grpo_task_ids=(134,),
+            holdout_task_ids=(),
+            eval_task_ids=(21, 132, 134),
+            split_seed=42,
+        )
+        args = build_arg_parser().parse_args(
+            [
+                "--family",
+                "bootstrap41",
+                "--task-group-groups-per-task",
+                "site_gitlab=4",
+                "--warmup-demo-task-group-limit-per-task",
+                "site_gitlab=4",
+            ]
+        )
+
+        stage_args = _build_stage_args(args, split, Path("C:\\tmp\\out"), Path("C:\\tmp\\demos"))
+
+        self.assertEqual(stage_args.groups_per_task, {134: 4})
+        self.assertEqual(stage_args.warmup_demo_limit_per_task, {132: 4})
 
     def test_run_baseline_eval_applies_group_specific_max_steps(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:

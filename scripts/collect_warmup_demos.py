@@ -69,6 +69,7 @@ def collect_scripted_warmup_demos(
     seed: int,
     episodes: int,
     max_steps: int,
+    per_task_episodes: dict[int, int] | None = None,
     per_task_max_steps: dict[int, int] | None = None,
     out_dir: str | Path,
     headed: bool = False,
@@ -83,10 +84,11 @@ def collect_scripted_warmup_demos(
         policy = get_scripted_warmup_policy(task_id)
         task_dir = out_dir / f"task_{task_id:04d}"
         task_dir.mkdir(parents=True, exist_ok=True)
+        task_episode_count = (per_task_episodes or {}).get(task_id, episodes)
         task_max_steps = (per_task_max_steps or {}).get(task_id, max_steps)
 
         task_episodes: list[dict[str, object]] = []
-        for episode_idx in range(episodes):
+        for episode_idx in range(task_episode_count):
             episode_seed = seed + (task_offset * 1000) + episode_idx
             episode_out_dir = task_dir / f"episode_{episode_idx:04d}"
             episode = run_episode(
@@ -119,6 +121,10 @@ def collect_scripted_warmup_demos(
         "task_ids": task_ids,
         "task_count": len(task_ids),
         "episodes_per_task": episodes,
+        "per_task_episodes": {
+            str(task_id): task_episode_count
+            for task_id, task_episode_count in sorted((per_task_episodes or {}).items())
+        },
         "default_max_steps": max_steps,
         "per_task_max_steps": {
             str(task_id): task_max_steps

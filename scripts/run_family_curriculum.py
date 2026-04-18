@@ -49,6 +49,12 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--warmup-demo-episodes", type=int, default=2)
     parser.add_argument("--warmup-demo-max-steps", type=int, default=4)
     parser.add_argument(
+        "--warmup-demo-task-group-episodes",
+        action="append",
+        default=[],
+        help="Optional warmup-demo episode overrides like site_gitlab=4.",
+    )
+    parser.add_argument(
         "--warmup-demo-task-group-max-steps",
         action="append",
         default=[],
@@ -57,10 +63,22 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--reuse-existing-demos", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument("--reuse-existing-stages", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument("--warmup-demo-limit-per-task", type=int, default=2)
+    parser.add_argument(
+        "--warmup-demo-task-group-limit-per-task",
+        action="append",
+        default=[],
+        help="Optional warmup-training demo-limit overrides like site_gitlab=4.",
+    )
     parser.add_argument("--warmup-epochs", type=int, default=1)
     parser.add_argument("--warmup-batch-size", type=int, default=1)
     parser.add_argument("--warmup-gradient-accumulation-steps", type=int, default=4)
     parser.add_argument("--groups-per-task", type=int, default=2)
+    parser.add_argument(
+        "--task-group-groups-per-task",
+        action="append",
+        default=[],
+        help="Optional rollout group-count overrides like site_gitlab=4.",
+    )
     parser.add_argument("--group-size", type=int, default=2)
     parser.add_argument("--iterations", type=int, default=1)
     parser.add_argument("--ppo-epochs", type=int, default=2)
@@ -438,6 +456,12 @@ def _prepare_warmup_demos(args, split: TaskSplit, warmup_demo_dir: Path) -> dict
         seed=args.seed,
         episodes=args.warmup_demo_episodes,
         max_steps=args.warmup_demo_max_steps,
+        per_task_episodes=_resolve_family_task_group_int_overrides(
+            split.family_name,
+            split.warmup_task_ids,
+            default_value=args.warmup_demo_episodes,
+            group_overrides=_get_group_int_overrides(args, "warmup_demo_task_group_episodes"),
+        ),
         per_task_max_steps=_resolve_family_task_group_step_overrides(
             split.family_name,
             split.warmup_task_ids,
@@ -548,11 +572,21 @@ def _build_stage_args(args, split: TaskSplit, out_dir: Path, warmup_demo_dir: Pa
         model_dir_name=args.model_dir_name,
         model_path=args.model_path,
         warmup_demo_dir=[str(warmup_demo_dir)],
-        warmup_demo_limit_per_task=args.warmup_demo_limit_per_task,
+        warmup_demo_limit_per_task=_resolve_family_task_group_int_overrides(
+            split.family_name,
+            split.warmup_task_ids,
+            default_value=args.warmup_demo_limit_per_task,
+            group_overrides=_get_group_int_overrides(args, "warmup_demo_task_group_limit_per_task"),
+        ),
         warmup_epochs=args.warmup_epochs,
         warmup_batch_size=args.warmup_batch_size,
         warmup_gradient_accumulation_steps=args.warmup_gradient_accumulation_steps,
-        groups_per_task=args.groups_per_task,
+        groups_per_task=_resolve_family_task_group_int_overrides(
+            split.family_name,
+            split.grpo_task_ids,
+            default_value=args.groups_per_task,
+            group_overrides=_get_group_int_overrides(args, "task_group_groups_per_task"),
+        ),
         group_size=args.group_size,
         iterations=args.iterations,
         ppo_epochs=args.ppo_epochs,
@@ -730,15 +764,19 @@ def _load_json(path: Path) -> dict[str, object]:
 
 
 def _get_group_step_overrides(args, attr_name: str) -> dict[str, int]:
+    return _get_group_int_overrides(args, attr_name)
+
+
+def _get_group_int_overrides(args, attr_name: str) -> dict[str, int]:
     raw_value = getattr(args, attr_name, None)
     if not raw_value:
         return {}
     if isinstance(raw_value, dict):
         return dict(raw_value)
-    return _parse_step_override_entries(raw_value, subject_name="task group")
+    return _parse_group_int_override_entries(raw_value, subject_name="task group")
 
 
-def _parse_step_override_entries(entries: list[str], *, subject_name: str) -> dict[str, int]:
+def _parse_group_int_override_entries(entries: list[str], *, subject_name: str) -> dict[str, int]:
     overrides: dict[str, int] = {}
     for entry in entries:
         if "=" not in entry:
@@ -769,6 +807,21 @@ def _resolve_family_task_group_step_overrides(
     default_max_steps: int,
     group_overrides: dict[str, int],
 ) -> dict[int, int]:
+    return _resolve_family_task_group_int_overrides(
+        family_name,
+        task_ids,
+        default_value=default_max_steps,
+        group_overrides=group_overrides,
+    )
+
+
+def _resolve_family_task_group_int_overrides(
+    family_name: str,
+    task_ids: tuple[int, ...] | list[int],
+    *,
+    default_value: int,
+    group_overrides: dict[str, int],
+) -> dict[int, int]:
     if not group_overrides:
         return {}
     task_groups = get_family_task_groups(family_name)
@@ -781,12 +834,12 @@ def _resolve_family_task_group_step_overrides(
     task_ids = tuple(int(task_id) for task_id in task_ids)
     overrides: dict[int, int] = {}
     for task_id in task_ids:
-        resolved_max_steps = default_max_steps
-        for group_name, group_max_steps in group_overrides.items():
+        resolved_value = default_value
+        for group_name, group_value in group_overrides.items():
             if task_id in task_groups[group_name]:
-                resolved_max_steps = max(resolved_max_steps, group_max_steps)
-        if resolved_max_steps != default_max_steps:
-            overrides[task_id] = resolved_max_steps
+                resolved_value = max(resolved_value, group_value)
+        if resolved_value != default_value:
+            overrides[task_id] = resolved_value
     return overrides
 
 

@@ -17,8 +17,11 @@ from scripts.train_grpo_staged import (
     _build_sample_weight_config,
     _evaluate_adapter,
     _normalize_stage_task_sets,
+    _resolve_task_groups_per_task,
     _resolve_task_max_steps,
+    _resolve_warmup_demo_limits,
     _run_collect,
+    _select_warmup_trajectories,
 )
 
 
@@ -130,12 +133,46 @@ class TrainGrpoStagedTests(unittest.TestCase):
 
         self.assertEqual(overrides, {133: 8, 293: 6})
 
+    def test_resolve_warmup_demo_limits_parses_cli_entries(self) -> None:
+        args = Namespace(warmup_demo_limit_override=["132=4", "133=5"])
+
+        overrides = _resolve_warmup_demo_limits(args)
+
+        self.assertEqual(overrides, {132: 4, 133: 5})
+
+    def test_resolve_task_groups_per_task_parses_cli_entries(self) -> None:
+        args = Namespace(task_groups_per_task=["134=4", "135=5"])
+
+        overrides = _resolve_task_groups_per_task(args)
+
+        self.assertEqual(overrides, {134: 4, 135: 5})
+
+    def test_select_warmup_trajectories_uses_per_task_limits(self) -> None:
+        trajectories = [
+            Namespace(task_id=132),
+            Namespace(task_id=132),
+            Namespace(task_id=132),
+            Namespace(task_id=21),
+            Namespace(task_id=21),
+        ]
+
+        with patch("scripts.train_grpo_staged.load_demo_trajectories", return_value=trajectories):
+            selected = _select_warmup_trajectories(
+                ["demo_dir"],
+                [132, 21],
+                2,
+                per_task_limits={132: 3},
+            )
+
+        self.assertEqual([trajectory.task_id for trajectory in selected], [132, 132, 132, 21, 21])
+
     def test_run_collect_uses_task_specific_max_steps(self) -> None:
         args = Namespace(
             task_ids=[133, 293],
             warmup_task_ids=[133, 293],
             holdout_task_ids=[],
             groups_per_task=1,
+            task_groups_per_task={133: 2},
             group_size=1,
             seed=7,
             max_steps=4,
@@ -159,6 +196,13 @@ class TrainGrpoStagedTests(unittest.TestCase):
                             parse_failure_count=0,
                         ),
                         Namespace(
+                            success=True,
+                            reward=1.0,
+                            steps_taken=4,
+                            invalid_action_count=0,
+                            parse_failure_count=0,
+                        ),
+                        Namespace(
                             success=False,
                             reward=0.0,
                             steps_taken=4,
@@ -170,9 +214,10 @@ class TrainGrpoStagedTests(unittest.TestCase):
             ):
                 _run_collect(args, out_dir)
 
-        self.assertEqual(run_episode_mock.call_count, 2)
+        self.assertEqual(run_episode_mock.call_count, 3)
         self.assertEqual(run_episode_mock.call_args_list[0].args[3], 8)
-        self.assertEqual(run_episode_mock.call_args_list[1].args[3], 4)
+        self.assertEqual(run_episode_mock.call_args_list[1].args[3], 8)
+        self.assertEqual(run_episode_mock.call_args_list[2].args[3], 4)
 
     def test_build_reward_config_uses_cli_overrides(self) -> None:
         args = Namespace(
@@ -228,6 +273,10 @@ class TrainGrpoStagedTests(unittest.TestCase):
                 "325",
                 "--task-max-steps",
                 "325=8",
+                "--warmup-demo-limit-override",
+                "325=4",
+                "--task-groups-per-task",
+                "325=3",
                 "--quantization-mode",
                 "bnb_4bit",
                 "--quant-compute-dtype",
@@ -248,6 +297,8 @@ class TrainGrpoStagedTests(unittest.TestCase):
 
         self.assertEqual(args.quantization_mode, "bnb_4bit")
         self.assertEqual(args.task_max_steps, ["325=8"])
+        self.assertEqual(args.warmup_demo_limit_override, ["325=4"])
+        self.assertEqual(args.task_groups_per_task, ["325=3"])
         self.assertEqual(args.quant_compute_dtype, "float16")
         self.assertEqual(args.quant_type, "nf4")
         self.assertFalse(args.quant_use_double_quant)
