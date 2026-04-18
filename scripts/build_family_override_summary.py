@@ -32,12 +32,13 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Build a family-style summary from a completed baseline eval plus targeted task overrides."
     )
-    parser.add_argument("--split-manifest", type=Path, required=True)
-    parser.add_argument("--baseline-eval-summary", type=Path, required=True)
+    parser.add_argument("--manifest", type=Path, default=None)
+    parser.add_argument("--split-manifest", type=Path, default=None)
+    parser.add_argument("--baseline-eval-summary", type=Path, default=None)
     parser.add_argument("--label", default="current_stack")
     parser.add_argument("--override", action="append", default=[], metavar="TASK_ID=METRICS_JSON")
     parser.add_argument("--benchmark-blocker", action="append", default=[], metavar="TASK_ID")
-    parser.add_argument("--out", type=Path, required=True)
+    parser.add_argument("--out", type=Path, default=None)
     return parser
 
 
@@ -63,6 +64,55 @@ def _load_run_provenance(split_manifest_path: Path) -> dict[str, object]:
         if isinstance(recommended_split_alignment, dict)
         else _compare_split_to_recommended(split),
     }
+
+
+def _load_manifest(path: Path) -> dict[str, object]:
+    manifest = load_json(path)
+    if not isinstance(manifest, dict):
+        raise ValueError(f"Manifest must be a JSON object: {path}")
+    return manifest
+
+
+def _resolve_manifest_path(manifest_path: Path, value: str | None) -> Path | None:
+    if value is None:
+        return None
+    path = Path(value)
+    if path.is_absolute():
+        return path
+    return (manifest_path.parent / path).resolve()
+
+
+def _merge_manifest_args(args: argparse.Namespace) -> argparse.Namespace:
+    if args.manifest is None:
+        return args
+    manifest_path = args.manifest.resolve()
+    manifest = _load_manifest(manifest_path)
+
+    def manifest_value(key: str, default):
+        return manifest.get(key, default)
+
+    if getattr(args, "_split_manifest_explicit", False) is False and "split_manifest" in manifest:
+        args.split_manifest = _resolve_manifest_path(manifest_path, str(manifest["split_manifest"]))
+    if getattr(args, "_baseline_eval_summary_explicit", False) is False and "baseline_eval_summary" in manifest:
+        args.baseline_eval_summary = _resolve_manifest_path(manifest_path, str(manifest["baseline_eval_summary"]))
+    if getattr(args, "_out_explicit", False) is False and "out" in manifest:
+        args.out = _resolve_manifest_path(manifest_path, str(manifest["out"]))
+    if getattr(args, "_label_explicit", False) is False:
+        args.label = str(manifest_value("label", args.label))
+    if not getattr(args, "_benchmark_blocker_explicit", False):
+        args.benchmark_blocker = [str(task_id) for task_id in manifest_value("benchmark_blockers", args.benchmark_blocker)]
+    manifest_overrides = manifest.get("overrides", {})
+    if not isinstance(manifest_overrides, dict):
+        raise ValueError(f"manifest.overrides must be an object: {manifest_path}")
+    merged_overrides = {
+        str(task_id): str(_resolve_manifest_path(manifest_path, str(metrics_path)))
+        for task_id, metrics_path in manifest_overrides.items()
+    }
+    cli_overrides = dict(parse_override_spec(spec) for spec in args.override)
+    for task_id, metrics_path in cli_overrides.items():
+        merged_overrides[task_id] = str(metrics_path)
+    args.override = [f"{task_id}={metrics_path}" for task_id, metrics_path in sorted(merged_overrides.items(), key=lambda item: int(item[0]))]
+    return args
 
 
 def build_family_override_summary(
@@ -110,7 +160,24 @@ def build_family_override_summary(
 
 
 def main() -> int:
-    args = build_arg_parser().parse_args()
+    parser = build_arg_parser()
+    args = parser.parse_args()
+    explicit_flags = {
+        "split_manifest": "--split-manifest" in sys.argv,
+        "baseline_eval_summary": "--baseline-eval-summary" in sys.argv,
+        "out": "--out" in sys.argv,
+        "label": "--label" in sys.argv,
+        "benchmark_blocker": "--benchmark-blocker" in sys.argv,
+    }
+    for key, value in explicit_flags.items():
+        setattr(args, f"_{key}_explicit", value)
+    args = _merge_manifest_args(args)
+    if args.split_manifest is None:
+        raise ValueError("A split manifest is required via --split-manifest or --manifest")
+    if args.baseline_eval_summary is None:
+        raise ValueError("A baseline eval summary is required via --baseline-eval-summary or --manifest")
+    if args.out is None:
+        raise ValueError("An output path is required via --out or --manifest")
     overrides = dict(parse_override_spec(spec) for spec in args.override)
     summary = build_family_override_summary(
         split_manifest_path=args.split_manifest,

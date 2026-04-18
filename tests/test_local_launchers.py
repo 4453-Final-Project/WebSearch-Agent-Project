@@ -316,6 +316,8 @@ class LocalLaunchersTests(unittest.TestCase):
             "refresh_qwen_shopping_full_current_stack.ps1",
             "refresh_bootstrap41_curriculum_manifest.sh",
             "refresh_bootstrap41_curriculum_manifest.ps1",
+            "refresh_bootstrap41_current_stack_summary.sh",
+            "refresh_bootstrap41_current_stack_summary.ps1",
             "refresh_bootstrap44_curriculum_manifest.sh",
             "refresh_bootstrap44_curriculum_manifest.ps1",
             "refresh_bootstrap44_current_stack_scorecard.sh",
@@ -401,6 +403,14 @@ class LocalLaunchersTests(unittest.TestCase):
         for script in (bash_script, powershell_script):
             self.assertIn("refresh_family_current_stack.py", script)
             self.assertIn("qwen_shopping_full_current_stack_manifest.json", script)
+
+    def test_bootstrap41_current_stack_refresh_wrappers_use_checked_in_manifest(self) -> None:
+        bash_script = _read_local_script("refresh_bootstrap41_current_stack_summary.sh")
+        powershell_script = _read_local_script("refresh_bootstrap41_current_stack_summary.ps1")
+
+        for script in (bash_script, powershell_script):
+            self.assertIn("build_family_override_summary.py", script)
+            self.assertIn("bootstrap41_current_stack_summary_manifest.json", script)
 
     def test_web_mix91_current_stack_refresh_wrappers_use_checked_in_manifest(self) -> None:
         bash_script = _read_local_script("refresh_web_mix91_current_stack_scorecard.sh")

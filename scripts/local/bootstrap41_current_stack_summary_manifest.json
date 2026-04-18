@@ -1,0 +1,37 @@
+{
+  "split_manifest": "bootstrap41_curriculum_manifest.json",
+  "baseline_eval_summary": "../../../outputs/qwen_bootstrap41_curriculum_v3_mapfix/baseline_eval_summary.json",
+  "label": "current_stack",
+  "benchmark_blockers": [
+    "133"
+  ],
+  "out": "../../../outputs/bootstrap41_current_stack_summary.json",
+  "overrides": {
+    "0": "../../../outputs/bootstrap41_dashboard_recheck_v1/task_0/metrics.json",
+    "3": "../../../outputs/bootstrap41_dashboard_recheck_v1/task_3/metrics.json",
+    "11": "../../../outputs/eval_task_11_bootstrap_reviewcount_v1/metrics.json",
+    "21": "../../../outputs/eval_task_21_bootstrap_reviewfix_v4/metrics.json",
+    "23": "../../../outputs/eval_task_23_bootstrap_reviewauthors_v1/metrics.json",
+    "25": "../../../outputs/eval_task_25_bootstrap_reviewauthors_v1/metrics.json",
+    "26": "../../../outputs/eval_task_26_bootstrap_reviewauthors_v1/metrics.json",
+    "27": "../../../outputs/eval_task_27_bootstrap_redditfix_v5/metrics.json",
+    "28": "../../../outputs/eval_task_28_bootstrap_redditfix_v1/metrics.json",
+    "29": "../../../outputs/eval_task_29_bootstrap_redditfix_v3/metrics.json",
+    "30": "../../../outputs/eval_task_30_bootstrap_redditfix_v1/metrics.json",
+    "31": "../../../outputs/eval_task_31_bootstrap_redditfix_v1/metrics.json",
+    "41": "../../../outputs/eval_task_41_bootstrap_searchterm_v1/metrics.json",
+    "66": "../../../outputs/eval_task_66_bootstrap_redditfix_v1/metrics.json",
+    "67": "../../../outputs/eval_task_67_bootstrap_redditfix_v1/metrics.json",
+    "68": "../../../outputs/eval_task_68_bootstrap_redditfix_v1/metrics.json",
+    "69": "../../../outputs/eval_task_69_bootstrap_redditfix_v1/metrics.json",
+    "77": "../../../outputs/eval_task_77_bootstrap_reviewstatus_v1/metrics.json",
+    "125": "../../../outputs/eval_task_125_pricerangefix_v3/metrics.json",
+    "126": "../../../outputs/eval_task_126_pricerangefix_v1/metrics.json",
+    "132": "../../../outputs/eval_task_132_bootstrap_hostfix_v5/metrics.json",
+    "134": "../../../outputs/eval_task_134_bootstrap_inferencefix_v1/metrics.json",
+    "135": "../../../outputs/eval_task_135_bootstrap_gitlabcountfix_v1/metrics.json",
+    "136": "../../../outputs/eval_task_136_bootstrap_gitlabcountfix_v1/metrics.json",
+    "259": "../../../outputs/eval_task_259_bootstrap_rssfix_v1/metrics.json",
+    "293": "../../../outputs/eval_task_293_bootstrap_gitlabutilityfix_v1/metrics.json"
+  }
+}
