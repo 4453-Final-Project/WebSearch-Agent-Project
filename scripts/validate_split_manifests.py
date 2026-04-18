@@ -19,6 +19,8 @@ from src.training.task_families import recommend_task_split  # noqa: E402
 DEFAULT_MANIFESTS = {
     "bootstrap41": REPO_ROOT / "scripts" / "local" / "bootstrap41_curriculum_manifest.json",
     "bootstrap44": REPO_ROOT / "scripts" / "local" / "bootstrap44_curriculum_manifest.json",
+    "shopping_order": REPO_ROOT / "scripts" / "local" / "shopping_order_curriculum_manifest.json",
+    "shopping_order_full": REPO_ROOT / "scripts" / "local" / "shopping_order_full_curriculum_manifest.json",
     "shopping_exact": REPO_ROOT / "scripts" / "local" / "shopping_exact_curriculum_manifest.json",
     "shopping_full": REPO_ROOT / "scripts" / "local" / "shopping_full_curriculum_manifest.json",
     "web_mix88": REPO_ROOT / "scripts" / "local" / "web_mix88_curriculum_manifest.json",
@@ -33,6 +35,14 @@ DEFAULT_LAUNCHERS = {
     "bootstrap44": (
         REPO_ROOT / "scripts" / "local" / "run_qwen_bootstrap44_curriculum.sh",
         REPO_ROOT / "scripts" / "local" / "run_liquid_bootstrap44_curriculum.sh",
+    ),
+    "shopping_order": (
+        REPO_ROOT / "scripts" / "local" / "run_qwen_shopping_order_curriculum.sh",
+        REPO_ROOT / "scripts" / "local" / "run_liquid_shopping_order_curriculum.sh",
+    ),
+    "shopping_order_full": (
+        REPO_ROOT / "scripts" / "local" / "run_qwen_shopping_order_full_curriculum.sh",
+        REPO_ROOT / "scripts" / "local" / "run_liquid_shopping_order_full_curriculum.sh",
     ),
     "shopping_exact": (
         REPO_ROOT / "scripts" / "local" / "run_qwen_shopping_exact_curriculum.sh",

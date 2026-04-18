@@ -57,6 +57,24 @@ class LocalLaunchersTests(unittest.TestCase):
         self.assertIn("--split-manifest", qwen_script)
         self.assertIn("--split-manifest", liquid_script)
 
+    def test_shopping_order_launchers_use_checked_in_manifest(self) -> None:
+        qwen_script = _read_local_script("run_qwen_shopping_order_curriculum.sh")
+        liquid_script = _read_local_script("run_liquid_shopping_order_curriculum.sh")
+
+        self.assertIn("shopping_order_curriculum_manifest.json", qwen_script)
+        self.assertIn("shopping_order_curriculum_manifest.json", liquid_script)
+        self.assertIn("--split-manifest", qwen_script)
+        self.assertIn("--split-manifest", liquid_script)
+
+    def test_shopping_order_full_launchers_use_checked_in_manifest(self) -> None:
+        qwen_script = _read_local_script("run_qwen_shopping_order_full_curriculum.sh")
+        liquid_script = _read_local_script("run_liquid_shopping_order_full_curriculum.sh")
+
+        self.assertIn("shopping_order_full_curriculum_manifest.json", qwen_script)
+        self.assertIn("shopping_order_full_curriculum_manifest.json", liquid_script)
+        self.assertIn("--split-manifest", qwen_script)
+        self.assertIn("--split-manifest", liquid_script)
+
     def test_web_mix88_launchers_use_checked_in_manifest(self) -> None:
         qwen_script = _read_local_script("run_qwen_web_mix88_curriculum.sh")
         liquid_script = _read_local_script("run_liquid_web_mix88_curriculum.sh")
@@ -264,6 +282,10 @@ class LocalLaunchersTests(unittest.TestCase):
             "refresh_bootstrap44_curriculum_manifest.ps1",
             "refresh_bootstrap44_current_stack_scorecard.sh",
             "refresh_bootstrap44_current_stack_scorecard.ps1",
+            "refresh_shopping_order_curriculum_manifest.sh",
+            "refresh_shopping_order_curriculum_manifest.ps1",
+            "refresh_shopping_order_full_curriculum_manifest.sh",
+            "refresh_shopping_order_full_curriculum_manifest.ps1",
             "refresh_web_mix88_curriculum_manifest.sh",
             "refresh_web_mix88_curriculum_manifest.ps1",
             "refresh_web_mix91_curriculum_manifest.sh",
@@ -305,6 +327,22 @@ class LocalLaunchersTests(unittest.TestCase):
         for script in (bash_script, powershell_script):
             self.assertIn("build_combined_family_stage_scorecard.py", script)
             self.assertIn("web_mix91_current_stack_scorecard_manifest.json", script)
+
+    def test_order_family_refresh_wrappers_use_checked_in_outputs(self) -> None:
+        shopping_order_bash = _read_local_script("refresh_shopping_order_curriculum_manifest.sh")
+        shopping_order_powershell = _read_local_script("refresh_shopping_order_curriculum_manifest.ps1")
+        shopping_order_full_bash = _read_local_script("refresh_shopping_order_full_curriculum_manifest.sh")
+        shopping_order_full_powershell = _read_local_script("refresh_shopping_order_full_curriculum_manifest.ps1")
+
+        for script in (shopping_order_bash, shopping_order_powershell):
+            self.assertIn("refresh_family_split_manifest.py", script)
+            self.assertIn("shopping_order", script)
+            self.assertIn("shopping_order_curriculum_manifest.json", script)
+
+        for script in (shopping_order_full_bash, shopping_order_full_powershell):
+            self.assertIn("refresh_family_split_manifest.py", script)
+            self.assertIn("shopping_order_full", script)
+            self.assertIn("shopping_order_full_curriculum_manifest.json", script)
 
 
 
