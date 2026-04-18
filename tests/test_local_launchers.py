@@ -64,6 +64,7 @@ class LocalLaunchersTests(unittest.TestCase):
         bootstrap41_qlora_rewardtune_tmux = _read_local_script("run_qwen_bootstrap41_curriculum_qlora_rewardtune_tmux.sh")
         bootstrap41_qlora_stepweight_tune_tmux = _read_local_script("run_qwen_bootstrap41_curriculum_qlora_stepweight_tune_tmux.sh")
         bootstrap41_qlora_gitlabsteps_tmux = _read_local_script("run_qwen_bootstrap41_curriculum_qlora_gitlabsteps_tmux.sh")
+        bootstrap41_qlora_gitlabsteps_cleandemos_tmux = _read_local_script("run_qwen_bootstrap41_curriculum_qlora_gitlabsteps_cleandemos_tmux.sh")
 
         self.assertIn('OUT_DIR="${RUN_OUT_DIR:-$WORKSPACE_ROOT/outputs/qwen_shopping_full_curriculum_v3_balanced}"', shopping_full_tmux)
         self.assertIn('TMUX_SESSION_PATH="$OUT_DIR/tmux_session.txt"', shopping_full_tmux)
@@ -118,6 +119,12 @@ class LocalLaunchersTests(unittest.TestCase):
         self.assertIn('--task-group-max-steps site_gitlab=8', bootstrap41_qlora_gitlabsteps_tmux)
         self.assertIn('--warmup-demo-task-group-max-steps site_gitlab=8', bootstrap41_qlora_gitlabsteps_tmux)
         self.assertIn('run_qwen_bootstrap41_curriculum_tmux.sh', bootstrap41_qlora_gitlabsteps_tmux)
+
+        self.assertIn('RUN_OUT_DIR="${RUN_OUT_DIR:-$WORKSPACE_ROOT/outputs/qwen_bootstrap41_curriculum_v15_qlora_gitlabsteps_cleandemos}"', bootstrap41_qlora_gitlabsteps_cleandemos_tmux)
+        self.assertIn('TMUX_SESSION_NAME="${TMUX_SESSION_NAME:-qwen_bootstrap41_v15_qlora_gitlabsteps_cleandemos}"', bootstrap41_qlora_gitlabsteps_cleandemos_tmux)
+        self.assertIn('--task-group-max-steps site_gitlab=8', bootstrap41_qlora_gitlabsteps_cleandemos_tmux)
+        self.assertIn('--warmup-demo-task-group-max-steps site_gitlab=8', bootstrap41_qlora_gitlabsteps_cleandemos_tmux)
+        self.assertIn('run_qwen_bootstrap41_curriculum_tmux.sh', bootstrap41_qlora_gitlabsteps_cleandemos_tmux)
 
     def test_refresh_wrappers_exist_for_exact_full_and_bootstrap41_manifests(self) -> None:
         expected_files = (
