@@ -22,7 +22,7 @@ Current broader shopping stack
 
 Current cross-site bootstrap stack
 - Baseline bootstrap41 score: 12/41 = 0.292683
-- Current bootstrap41 score: 37/41 = 0.902439
+- Current bootstrap41 score: 38/41 = 0.926829
 
 Current shopping order-spend probes
 - Task 144 score: 1/1 = 1.000000

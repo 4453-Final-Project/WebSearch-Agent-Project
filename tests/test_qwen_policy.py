@@ -973,13 +973,13 @@ class QwenPolicyTests(unittest.TestCase):
             '<nav class="submission__nav"><a href="/f/Showerthoughts/15572/example-post" class="text-sm"><strong>12 comments</strong></a></nav>'
             '</article>'
         )
-        submission_response = Mock(ok=True)
-        submission_response.text = (
+        comments_response = Mock(ok=True)
+        comments_response.text = (
             '<span class="vote__net-score">4</span>'
-            '<span class="vote__net-score">−1</span>'
+            '<span class="vote__net-score">&minus;1&minus;</span>'
             '<span class="vote__net-score">-3</span>'
         )
-        mock_get.side_effect = [forum_response, forum_response, submission_response]
+        mock_get.side_effect = [forum_response, forum_response, comments_response]
         observation = NormalizedObservation(
             goal=(
                 "Tell me the count of comments that have received more downvotes than upvotes "
@@ -1016,8 +1016,8 @@ class QwenPolicyTests(unittest.TestCase):
             '<nav class="submission__nav"><a href="/f/WorcesterMA/123034/example-post" class="text-sm"><strong>12 comments</strong></a></nav>'
             '</article>'
         )
-        submission_response = Mock(ok=True)
-        submission_response.text = '<span class="vote__net-score">0</span>'
+        comments_response = Mock(ok=True)
+        comments_response.text = '<span class="vote__net-score">0</span>'
 
         def fake_get(url, timeout=5, **kwargs):
             if url.endswith("/f/Worcester") or url.endswith("/f/worcester"):
@@ -1028,8 +1028,8 @@ class QwenPolicyTests(unittest.TestCase):
                 return search_response
             if url.endswith("/f/WorcesterMA"):
                 return resolved_forum_response
-            if "123034" in url:
-                return submission_response
+            if url.endswith("/user/graemeknows/comments"):
+                return comments_response
             raise AssertionError(f"Unexpected URL: {url}")
 
         mock_get.side_effect = fake_get

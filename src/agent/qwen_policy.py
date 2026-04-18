@@ -4424,23 +4424,48 @@ def _fetch_reddit_latest_post_negative_comment_count(current_url: str, forum_que
     if not submission_rows:
         return None
     latest_submission = max(submission_rows, key=lambda row: row.get("datetime", ""))
-    submission_url = latest_submission.get("discussion_url", "") or latest_submission.get("link_url", "")
-    if not submission_url:
+    author_url = latest_submission.get("author_url", "")
+    comments_url = _build_reddit_user_comments_url(author_url)
+    target_url = comments_url or latest_submission.get("discussion_url", "") or latest_submission.get("link_url", "")
+    if not target_url:
         return None
-    submission_html = _safe_fetch_text(submission_url)
+    submission_html = _safe_fetch_text(target_url)
     if not submission_html:
         return None
     negative_count = 0
     for score_text in re.findall(r'<span class="vote__net-score"[^>]*>(.*?)</span>', submission_html, flags=re.IGNORECASE | re.DOTALL):
-        cleaned_score = _strip_html_fragment(score_text).replace(",", "").replace("−", "-").strip()
-        if not cleaned_score:
+        parsed_score = _parse_reddit_vote_score(score_text)
+        if parsed_score is None:
             continue
-        try:
-            if int(cleaned_score) < 0:
-                negative_count += 1
-        except ValueError:
-            continue
+        if parsed_score < 0:
+            negative_count += 1
     return negative_count
+
+
+def _build_reddit_user_comments_url(author_url: str) -> str:
+    if not author_url:
+        return ""
+    parsed = urlparse(author_url)
+    if not parsed.netloc.endswith(":9999"):
+        return ""
+    path = (parsed.path or "").rstrip("/")
+    if not path.startswith("/user/"):
+        return ""
+    comments_path = path if path.endswith("/comments") else f"{path}/comments"
+    return urlunparse(parsed._replace(path=comments_path, query="", fragment=""))
+
+
+def _parse_reddit_vote_score(score_text: str) -> int | None:
+    cleaned_score = html.unescape(_strip_html_fragment(score_text)).replace(",", "").replace("−", "-").strip()
+    if not cleaned_score:
+        return None
+    match = re.search(r"-(?P<value>\d+)-", cleaned_score)
+    if match is not None:
+        return -int(match.group("value"))
+    match = re.search(r"(?P<value>-?\d+)", cleaned_score)
+    if match is None:
+        return None
+    return int(match.group("value"))
 
 
 def _fetch_reddit_top_submission_rows(current_url: str, forum_query: str) -> list[dict[str, str]]:
@@ -4475,12 +4500,18 @@ def _fetch_reddit_top_submission_rows(current_url: str, forum_query: str) -> lis
         if discussion_match is not None:
             discussion_url = _make_absolute_url(base_url, html.unescape(discussion_match.group("href")))
         datetime_match = re.search(r'<time[^>]*datetime="(?P<datetime>[^"]+)"', block, flags=re.IGNORECASE)
+        author_match = re.search(
+            r'<a href="(?P<href>/user/[^"]+)"[^>]*class="[^"]*submission__submitter[^"]*"',
+            block,
+            flags=re.IGNORECASE | re.DOTALL,
+        )
         rows.append(
             {
                 "title": title,
                 "link_url": link_url,
                 "discussion_url": discussion_url,
                 "datetime": datetime_match.group("datetime") if datetime_match else "",
+                "author_url": _make_absolute_url(base_url, html.unescape(author_match.group("href"))) if author_match else "",
             }
         )
     return rows
