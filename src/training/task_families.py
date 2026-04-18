@@ -20,7 +20,19 @@ BOOTSTRAP41_SHOPPING_TASK_IDS = (21, 23, 25, 26, 124, 125, 126, 141, 188)
 BOOTSTRAP41_REDDIT_TASK_IDS = (27, 28, 29, 30, 31, 66, 67, 68, 69)
 BOOTSTRAP41_GITLAB_TASK_IDS = (132, 133, 134, 135, 136, 259, 293)
 BOOTSTRAP41_MAP_TASK_IDS = (7, 9, 10, 36, 70, 71, 72)
+BOOTSTRAP44_SHOPPING_ADMIN_TASK_IDS = tuple(sorted(BOOTSTRAP41_SHOPPING_ADMIN_TASK_IDS + (12, 13)))
+BOOTSTRAP44_SHOPPING_TASK_IDS = tuple(sorted(BOOTSTRAP41_SHOPPING_TASK_IDS + (144,)))
+BOOTSTRAP44_TASK_IDS = tuple(
+    sorted(
+        set(BOOTSTRAP44_SHOPPING_ADMIN_TASK_IDS)
+        | set(BOOTSTRAP44_SHOPPING_TASK_IDS)
+        | set(BOOTSTRAP41_REDDIT_TASK_IDS)
+        | set(BOOTSTRAP41_GITLAB_TASK_IDS)
+        | set(BOOTSTRAP41_MAP_TASK_IDS)
+    )
+)
 WEB_MIX88_TASK_IDS = tuple(sorted(set(SHOPPING_FULL_TASK_IDS) | set(BOOTSTRAP41_TASK_IDS)))
+WEB_MIX91_TASK_IDS = tuple(sorted(set(SHOPPING_FULL_TASK_IDS) | set(BOOTSTRAP44_TASK_IDS)))
 
 
 @dataclass(frozen=True, slots=True)
@@ -101,11 +113,26 @@ TASK_FAMILY_SPECS = {
         recommended_warmup_count=15,
         recommended_holdout_count=8,
     ),
+    "bootstrap44": TaskFamilySpec(
+        name="bootstrap44",
+        description="Expanded cross-site scripted WebArena family adding validated admin review-count and storefront spend tasks to bootstrap41.",
+        task_ids=BOOTSTRAP44_TASK_IDS,
+        recommended_warmup_count=16,
+        recommended_holdout_count=8,
+    ),
     "web_mix88": TaskFamilySpec(
         name="web_mix88",
         description="Mixed shopping-plus-cross-site scripted family spanning shopping, admin, reddit, gitlab, and map tasks.",
         task_ids=WEB_MIX88_TASK_IDS,
         recommended_warmup_count=30,
+        recommended_holdout_count=16,
+        requires_openai_judge=True,
+    ),
+    "web_mix91": TaskFamilySpec(
+        name="web_mix91",
+        description="Mixed shopping-plus-cross-site scripted family spanning shopping, admin, reddit, gitlab, and map tasks, plus validated admin/spend expansions.",
+        task_ids=WEB_MIX91_TASK_IDS,
+        recommended_warmup_count=31,
         recommended_holdout_count=16,
         requires_openai_judge=True,
     ),
@@ -149,6 +176,16 @@ def get_family_task_groups(name: str) -> dict[str, tuple[int, ...]]:
             "site_gitlab": BOOTSTRAP41_GITLAB_TASK_IDS,
             "site_map": BOOTSTRAP41_MAP_TASK_IDS,
         }
+    if name == "bootstrap44":
+        return {
+            "judge_free": BOOTSTRAP44_TASK_IDS,
+            "judge_gated": (),
+            "site_shopping_admin": BOOTSTRAP44_SHOPPING_ADMIN_TASK_IDS,
+            "site_shopping": BOOTSTRAP44_SHOPPING_TASK_IDS,
+            "site_reddit": BOOTSTRAP41_REDDIT_TASK_IDS,
+            "site_gitlab": BOOTSTRAP41_GITLAB_TASK_IDS,
+            "site_map": BOOTSTRAP41_MAP_TASK_IDS,
+        }
     if name == "web_mix88":
         return {
             "judge_free": tuple(sorted(set(WEB_MIX88_TASK_IDS) - set(SHOPPING_FULL_FUZZY_TASK_IDS))),
@@ -156,6 +193,17 @@ def get_family_task_groups(name: str) -> dict[str, tuple[int, ...]]:
             "site_shopping_full": SHOPPING_FULL_TASK_IDS,
             "site_shopping_admin": BOOTSTRAP41_SHOPPING_ADMIN_TASK_IDS,
             "site_shopping": BOOTSTRAP41_SHOPPING_TASK_IDS,
+            "site_reddit": BOOTSTRAP41_REDDIT_TASK_IDS,
+            "site_gitlab": BOOTSTRAP41_GITLAB_TASK_IDS,
+            "site_map": BOOTSTRAP41_MAP_TASK_IDS,
+        }
+    if name == "web_mix91":
+        return {
+            "judge_free": tuple(sorted(set(WEB_MIX91_TASK_IDS) - set(SHOPPING_FULL_FUZZY_TASK_IDS))),
+            "judge_gated": SHOPPING_FULL_FUZZY_TASK_IDS,
+            "site_shopping_full": SHOPPING_FULL_TASK_IDS,
+            "site_shopping_admin": BOOTSTRAP44_SHOPPING_ADMIN_TASK_IDS,
+            "site_shopping": BOOTSTRAP44_SHOPPING_TASK_IDS,
             "site_reddit": BOOTSTRAP41_REDDIT_TASK_IDS,
             "site_gitlab": BOOTSTRAP41_GITLAB_TASK_IDS,
             "site_map": BOOTSTRAP41_MAP_TASK_IDS,
@@ -254,6 +302,16 @@ def recommend_task_split(family_name: str, *, split_seed: int = 42) -> TaskSplit
             eval_task_ids=spec.task_ids,
             split_seed=split_seed,
         )
+    if family_name == "bootstrap44":
+        return TaskSplit(
+            family_name=family_name,
+            task_ids=spec.task_ids,
+            warmup_task_ids=(0, 1, 11, 12, 21, 23, 124, 27, 28, 66, 132, 133, 293, 7, 9, 70),
+            grpo_task_ids=(2, 3, 4, 5, 13, 25, 26, 125, 126, 144, 29, 30, 31, 67, 134, 135, 136, 10, 36, 72),
+            holdout_task_ids=(41, 77, 141, 188, 68, 69, 259, 71),
+            eval_task_ids=spec.task_ids,
+            split_seed=split_seed,
+        )
     if family_name == "web_mix88":
         shopping_full_split = recommend_task_split("shopping_full", split_seed=split_seed)
         bootstrap41_split = recommend_task_split("bootstrap41", split_seed=split_seed)
@@ -264,6 +322,35 @@ def recommend_task_split(family_name: str, *, split_seed: int = 42) -> TaskSplit
             sorted(
                 task_id
                 for task_id in (set(shopping_full_split.warmup_task_ids) | set(bootstrap41_split.warmup_task_ids))
+                if task_id not in holdout_task_ids
+            )
+        )
+        grpo_task_ids = tuple(
+            sorted(
+                task_id
+                for task_id in spec.task_ids
+                if task_id not in warmup_task_ids and task_id not in holdout_task_ids
+            )
+        )
+        return TaskSplit(
+            family_name=family_name,
+            task_ids=spec.task_ids,
+            warmup_task_ids=warmup_task_ids,
+            grpo_task_ids=grpo_task_ids,
+            holdout_task_ids=holdout_task_ids,
+            eval_task_ids=spec.task_ids,
+            split_seed=split_seed,
+        )
+    if family_name == "web_mix91":
+        shopping_full_split = recommend_task_split("shopping_full", split_seed=split_seed)
+        bootstrap44_split = recommend_task_split("bootstrap44", split_seed=split_seed)
+        holdout_task_ids = tuple(
+            sorted(set(shopping_full_split.holdout_task_ids) | set(bootstrap44_split.holdout_task_ids))
+        )
+        warmup_task_ids = tuple(
+            sorted(
+                task_id
+                for task_id in (set(shopping_full_split.warmup_task_ids) | set(bootstrap44_split.warmup_task_ids))
                 if task_id not in holdout_task_ids
             )
         )

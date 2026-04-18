@@ -105,6 +105,36 @@ class TaskFamiliesTests(unittest.TestCase):
         self.assertEqual(checked_in_split.holdout_task_ids, split.holdout_task_ids)
         self.assertEqual(checked_in_split.eval_task_ids, split.eval_task_ids)
 
+    def test_checked_in_bootstrap44_manifest_matches_recommended_split(self) -> None:
+        manifest_path = PROJECT_ROOT / "scripts" / "local" / "bootstrap44_curriculum_manifest.json"
+        payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+        checked_in_split = _load_split_from_manifest(manifest_path, expected_family_name="bootstrap44")
+        split = recommend_task_split("bootstrap44", split_seed=checked_in_split.split_seed)
+
+        self.assertEqual(payload["family_name"], split.family_name)
+        self.assertEqual(payload["split_provenance"]["split_source"], "recommended")
+        self.assertTrue(payload["recommended_split_alignment"]["matches_recommended_split"])
+        self.assertEqual(checked_in_split.task_ids, split.task_ids)
+        self.assertEqual(checked_in_split.warmup_task_ids, split.warmup_task_ids)
+        self.assertEqual(checked_in_split.grpo_task_ids, split.grpo_task_ids)
+        self.assertEqual(checked_in_split.holdout_task_ids, split.holdout_task_ids)
+        self.assertEqual(checked_in_split.eval_task_ids, split.eval_task_ids)
+
+    def test_checked_in_web_mix91_manifest_matches_recommended_split(self) -> None:
+        manifest_path = PROJECT_ROOT / "scripts" / "local" / "web_mix91_curriculum_manifest.json"
+        payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+        checked_in_split = _load_split_from_manifest(manifest_path, expected_family_name="web_mix91")
+        split = recommend_task_split("web_mix91", split_seed=checked_in_split.split_seed)
+
+        self.assertEqual(payload["family_name"], split.family_name)
+        self.assertEqual(payload["split_provenance"]["split_source"], "recommended")
+        self.assertTrue(payload["recommended_split_alignment"]["matches_recommended_split"])
+        self.assertEqual(checked_in_split.task_ids, split.task_ids)
+        self.assertEqual(checked_in_split.warmup_task_ids, split.warmup_task_ids)
+        self.assertEqual(checked_in_split.grpo_task_ids, split.grpo_task_ids)
+        self.assertEqual(checked_in_split.holdout_task_ids, split.holdout_task_ids)
+        self.assertEqual(checked_in_split.eval_task_ids, split.eval_task_ids)
+
     def test_recommended_bootstrap41_split_balances_sites(self) -> None:
         split = recommend_task_split("bootstrap41", split_seed=11)
         task_groups = get_family_task_groups("bootstrap41")
@@ -122,6 +152,25 @@ class TaskFamiliesTests(unittest.TestCase):
         self.assertEqual(len(task_groups["site_map"]), 7)
         self.assertTrue({0, 21, 27, 132, 7}.issubset(set(split.warmup_task_ids)))
         self.assertTrue({41, 141, 68, 259, 71}.issubset(set(split.holdout_task_ids)))
+
+    def test_recommended_bootstrap44_split_expands_validated_admin_and_spend_tasks(self) -> None:
+        split = recommend_task_split("bootstrap44", split_seed=11)
+        task_groups = get_family_task_groups("bootstrap44")
+
+        self.assertEqual(len(split.task_ids), 44)
+        self.assertEqual(len(split.warmup_task_ids), 16)
+        self.assertEqual(len(split.holdout_task_ids), 8)
+        self.assertEqual(len(split.training_task_ids), 36)
+        self.assertTrue(set(split.holdout_task_ids).isdisjoint(split.training_task_ids))
+        self.assertFalse(family_requires_openai_judge("bootstrap44"))
+        self.assertTrue({12}.issubset(set(split.warmup_task_ids)))
+        self.assertTrue({13, 144}.issubset(set(split.grpo_task_ids)))
+        self.assertTrue({41, 77, 141, 188, 68, 69, 259, 71}.issubset(set(split.holdout_task_ids)))
+        self.assertEqual(len(task_groups["site_shopping_admin"]), 11)
+        self.assertEqual(len(task_groups["site_shopping"]), 10)
+        self.assertEqual(len(task_groups["site_reddit"]), 9)
+        self.assertEqual(len(task_groups["site_gitlab"]), 7)
+        self.assertEqual(len(task_groups["site_map"]), 7)
 
     def test_recommended_web_mix88_split_scales_with_cross_site_coverage(self) -> None:
         split = recommend_task_split("web_mix88", split_seed=11)
@@ -141,6 +190,28 @@ class TaskFamiliesTests(unittest.TestCase):
         self.assertEqual(len(task_groups["site_shopping_full"]), 48)
         self.assertEqual(len(task_groups["site_shopping_admin"]), 9)
         self.assertEqual(len(task_groups["site_shopping"]), 9)
+        self.assertEqual(len(task_groups["site_reddit"]), 9)
+        self.assertEqual(len(task_groups["site_gitlab"]), 7)
+        self.assertEqual(len(task_groups["site_map"]), 7)
+
+    def test_recommended_web_mix91_split_scales_with_bootstrap44_expansion(self) -> None:
+        split = recommend_task_split("web_mix91", split_seed=11)
+        task_groups = get_family_task_groups("web_mix91")
+
+        self.assertEqual(len(split.task_ids), 91)
+        self.assertEqual(len(split.warmup_task_ids), 31)
+        self.assertEqual(len(split.holdout_task_ids), 16)
+        self.assertEqual(len(split.training_task_ids), 75)
+        self.assertTrue(set(split.holdout_task_ids).isdisjoint(split.training_task_ids))
+        self.assertTrue(family_requires_openai_judge("web_mix91"))
+        self.assertTrue({12}.issubset(set(split.warmup_task_ids)))
+        self.assertTrue({13, 144}.issubset(set(split.grpo_task_ids)))
+        self.assertTrue({41, 77, 141, 188, 68, 69, 259, 71}.issubset(set(split.holdout_task_ids)))
+        self.assertTrue({96, 117, 189, 195, 200, 324, 358, 360}.issubset(set(split.holdout_task_ids)))
+        self.assertEqual(len(task_groups["judge_gated"]), 16)
+        self.assertEqual(len(task_groups["site_shopping_full"]), 48)
+        self.assertEqual(len(task_groups["site_shopping_admin"]), 11)
+        self.assertEqual(len(task_groups["site_shopping"]), 10)
         self.assertEqual(len(task_groups["site_reddit"]), 9)
         self.assertEqual(len(task_groups["site_gitlab"]), 7)
         self.assertEqual(len(task_groups["site_map"]), 7)

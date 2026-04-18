@@ -23,6 +23,15 @@ class ValidateSplitManifestsTests(unittest.TestCase):
         self.assertEqual(payload["task_count"], 41)
         self.assertEqual(payload["training_task_count"], 33)
 
+    def test_validate_manifest_accepts_checked_in_bootstrap44_manifest(self) -> None:
+        manifest_path = Path(__file__).resolve().parents[1] / "scripts" / "local" / "bootstrap44_curriculum_manifest.json"
+
+        errors, payload = _validate_manifest("bootstrap44", manifest_path)
+
+        self.assertEqual(errors, [])
+        self.assertEqual(payload["task_count"], 44)
+        self.assertEqual(payload["training_task_count"], 36)
+
     def test_validate_manifest_accepts_checked_in_web_mix88_manifest(self) -> None:
         manifest_path = Path(__file__).resolve().parents[1] / "scripts" / "local" / "web_mix88_curriculum_manifest.json"
 
@@ -31,6 +40,15 @@ class ValidateSplitManifestsTests(unittest.TestCase):
         self.assertEqual(errors, [])
         self.assertEqual(payload["task_count"], 88)
         self.assertEqual(payload["training_task_count"], 72)
+
+    def test_validate_manifest_accepts_checked_in_web_mix91_manifest(self) -> None:
+        manifest_path = Path(__file__).resolve().parents[1] / "scripts" / "local" / "web_mix91_curriculum_manifest.json"
+
+        errors, payload = _validate_manifest("web_mix91", manifest_path)
+
+        self.assertEqual(errors, [])
+        self.assertEqual(payload["task_count"], 91)
+        self.assertEqual(payload["training_task_count"], 75)
 
     def test_validate_manifest_accepts_checked_in_exact_manifest(self) -> None:
         manifest_path = Path(__file__).resolve().parents[1] / "scripts" / "local" / "shopping_exact_curriculum_manifest.json"
@@ -81,6 +99,15 @@ class ValidateSplitManifestsTests(unittest.TestCase):
         self.assertTrue(payload["run_qwen_bootstrap41_curriculum.sh"]["ok"])
         self.assertTrue(payload["run_liquid_bootstrap41_curriculum.sh"]["ok"])
 
+    def test_validate_launchers_accepts_bootstrap44_scripts(self) -> None:
+        manifest_path = Path(__file__).resolve().parents[1] / "scripts" / "local" / "bootstrap44_curriculum_manifest.json"
+
+        errors, payload = _validate_launchers("bootstrap44", manifest_path)
+
+        self.assertEqual(errors, [])
+        self.assertTrue(payload["run_qwen_bootstrap44_curriculum.sh"]["ok"])
+        self.assertTrue(payload["run_liquid_bootstrap44_curriculum.sh"]["ok"])
+
     def test_validate_launchers_accepts_web_mix88_scripts(self) -> None:
         manifest_path = Path(__file__).resolve().parents[1] / "scripts" / "local" / "web_mix88_curriculum_manifest.json"
 
@@ -89,6 +116,15 @@ class ValidateSplitManifestsTests(unittest.TestCase):
         self.assertEqual(errors, [])
         self.assertTrue(payload["run_qwen_web_mix88_curriculum.sh"]["ok"])
         self.assertTrue(payload["run_liquid_web_mix88_curriculum.sh"]["ok"])
+
+    def test_validate_launchers_accepts_web_mix91_scripts(self) -> None:
+        manifest_path = Path(__file__).resolve().parents[1] / "scripts" / "local" / "web_mix91_curriculum_manifest.json"
+
+        errors, payload = _validate_launchers("web_mix91", manifest_path)
+
+        self.assertEqual(errors, [])
+        self.assertTrue(payload["run_qwen_web_mix91_curriculum.sh"]["ok"])
+        self.assertTrue(payload["run_liquid_web_mix91_curriculum.sh"]["ok"])
 
     def test_validate_checked_in_split_manifests_can_limit_family(self) -> None:
         errors, payload = validate_checked_in_split_manifests(["shopping_exact"])
@@ -101,7 +137,9 @@ class ValidateSplitManifestsTests(unittest.TestCase):
 
         self.assertEqual(errors, [])
         self.assertIn("bootstrap41", payload)
+        self.assertIn("bootstrap44", payload)
         self.assertIn("web_mix88", payload)
+        self.assertIn("web_mix91", payload)
 
     def test_validate_launchers_reports_missing_manifest_reference(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:

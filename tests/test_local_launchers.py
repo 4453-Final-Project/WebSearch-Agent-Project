@@ -48,12 +48,30 @@ class LocalLaunchersTests(unittest.TestCase):
         self.assertIn("--split-manifest", qwen_script)
         self.assertIn("--split-manifest", liquid_script)
 
+    def test_bootstrap44_launchers_use_checked_in_manifest(self) -> None:
+        qwen_script = _read_local_script("run_qwen_bootstrap44_curriculum.sh")
+        liquid_script = _read_local_script("run_liquid_bootstrap44_curriculum.sh")
+
+        self.assertIn("bootstrap44_curriculum_manifest.json", qwen_script)
+        self.assertIn("bootstrap44_curriculum_manifest.json", liquid_script)
+        self.assertIn("--split-manifest", qwen_script)
+        self.assertIn("--split-manifest", liquid_script)
+
     def test_web_mix88_launchers_use_checked_in_manifest(self) -> None:
         qwen_script = _read_local_script("run_qwen_web_mix88_curriculum.sh")
         liquid_script = _read_local_script("run_liquid_web_mix88_curriculum.sh")
 
         self.assertIn("web_mix88_curriculum_manifest.json", qwen_script)
         self.assertIn("web_mix88_curriculum_manifest.json", liquid_script)
+        self.assertIn("--split-manifest", qwen_script)
+        self.assertIn("--split-manifest", liquid_script)
+
+    def test_web_mix91_launchers_use_checked_in_manifest(self) -> None:
+        qwen_script = _read_local_script("run_qwen_web_mix91_curriculum.sh")
+        liquid_script = _read_local_script("run_liquid_web_mix91_curriculum.sh")
+
+        self.assertIn("web_mix91_curriculum_manifest.json", qwen_script)
+        self.assertIn("web_mix91_curriculum_manifest.json", liquid_script)
         self.assertIn("--split-manifest", qwen_script)
         self.assertIn("--split-manifest", liquid_script)
 
@@ -180,8 +198,12 @@ class LocalLaunchersTests(unittest.TestCase):
             "refresh_shopping_full_curriculum_manifest.ps1",
             "refresh_bootstrap41_curriculum_manifest.sh",
             "refresh_bootstrap41_curriculum_manifest.ps1",
+            "refresh_bootstrap44_curriculum_manifest.sh",
+            "refresh_bootstrap44_curriculum_manifest.ps1",
             "refresh_web_mix88_curriculum_manifest.sh",
             "refresh_web_mix88_curriculum_manifest.ps1",
+            "refresh_web_mix91_curriculum_manifest.sh",
+            "refresh_web_mix91_curriculum_manifest.ps1",
         )
 
         for filename in expected_files:
