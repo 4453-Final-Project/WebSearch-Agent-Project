@@ -114,6 +114,7 @@ class LocalLaunchersTests(unittest.TestCase):
         web_mix88_qlora_tmux = _read_local_script("run_qwen_web_mix88_curriculum_qlora_tmux.sh")
         web_mix88_qlora_gitlabcoverage_tmux = _read_local_script("run_qwen_web_mix88_curriculum_qlora_gitlabcoverage_tmux.sh")
         web_mix88_qlora_gitlabcoverage_warmupoversample_tmux = _read_local_script("run_qwen_web_mix88_curriculum_qlora_gitlabcoverage_warmupoversample_tmux.sh")
+        web_mix88_qlora_gitlabcoverage_warmupoversample_yearfix_tmux = _read_local_script("run_qwen_web_mix88_curriculum_qlora_gitlabcoverage_warmupoversample_yearfix_tmux.sh")
         web_mix91_qlora_tmux = _read_local_script("run_qwen_web_mix91_curriculum_qlora_tmux.sh")
         web_mix91_qlora_gitlabcoverage_tmux = _read_local_script("run_qwen_web_mix91_curriculum_qlora_gitlabcoverage_tmux.sh")
         web_mix91_qlora_gitlabcoverage_warmupoversample_tmux = _read_local_script("run_qwen_web_mix91_curriculum_qlora_gitlabcoverage_warmupoversample_tmux.sh")
@@ -269,6 +270,10 @@ class LocalLaunchersTests(unittest.TestCase):
         self.assertIn('TMUX_SESSION_NAME="${TMUX_SESSION_NAME:-qwen_web_mix88_v3_qlora_gitlabcoverage_warmupoversample}"', web_mix88_qlora_gitlabcoverage_warmupoversample_tmux)
         self.assertIn('--warmup-task-group-sample-multiplier site_gitlab=2.5', web_mix88_qlora_gitlabcoverage_warmupoversample_tmux)
         self.assertIn('run_qwen_web_mix88_curriculum_qlora_gitlabcoverage_tmux.sh', web_mix88_qlora_gitlabcoverage_warmupoversample_tmux)
+
+        self.assertIn('RUN_OUT_DIR="${RUN_OUT_DIR:-$WORKSPACE_ROOT/outputs/qwen_web_mix88_curriculum_v4_qlora_gitlabcoverage_warmupoversample_yearfix}"', web_mix88_qlora_gitlabcoverage_warmupoversample_yearfix_tmux)
+        self.assertIn('TMUX_SESSION_NAME="${TMUX_SESSION_NAME:-qwen_web_mix88_v4_qlora_gitlabcoverage_warmupoversample_yearfix}"', web_mix88_qlora_gitlabcoverage_warmupoversample_yearfix_tmux)
+        self.assertIn('run_qwen_web_mix88_curriculum_qlora_gitlabcoverage_warmupoversample_tmux.sh', web_mix88_qlora_gitlabcoverage_warmupoversample_yearfix_tmux)
 
         self.assertIn('OUT_DIR="${RUN_OUT_DIR:-$WORKSPACE_ROOT/outputs/qwen_web_mix91_curriculum_v1_qlora}"', web_mix91_qlora_tmux)
         self.assertIn('SESSION_NAME="${TMUX_SESSION_NAME:-qwen_web_mix91_v1_qlora}"', web_mix91_qlora_tmux)
