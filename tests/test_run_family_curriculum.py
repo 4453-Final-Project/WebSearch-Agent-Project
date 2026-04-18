@@ -961,6 +961,54 @@ class RunFamilyCurriculumTests(unittest.TestCase):
         self.assertEqual(summary["run_provenance"]["split_manifest_path"], "C:\\tmp\\split_manifest.json")
         self.assertEqual(summary["run_provenance"]["split_provenance"]["split_source"], "manifest")
 
+    def test_build_family_run_summary_includes_warmup_training_summary(self) -> None:
+        split = TaskSplit(
+            family_name="bootstrap41",
+            task_ids=(21, 132, 134),
+            warmup_task_ids=(21, 132),
+            grpo_task_ids=(134,),
+            holdout_task_ids=(),
+            eval_task_ids=(21, 132, 134),
+            split_seed=42,
+        )
+
+        summary = build_family_run_summary(
+            split,
+            baseline_eval={
+                "21": {"success_rate": 0.0},
+                "132": {"success_rate": 0.0},
+                "134": {"success_rate": 0.0},
+            },
+            eval_compare={
+                "warmup_eval": {
+                    "21": {"success_rate": 1.0},
+                    "132": {"success_rate": 1.0},
+                    "134": {"success_rate": 0.0},
+                },
+                "grpo_eval": {
+                    "21": {"success_rate": 1.0},
+                    "132": {"success_rate": 1.0},
+                    "134": {"success_rate": 1.0},
+                },
+            },
+            warmup_training_summary={
+                "warmup_metrics": {
+                    "source_task_sample_counts": {"21": 2, "132": 2},
+                    "average_epoch_task_sample_counts": {"21": 1.0, "132": 3.0},
+                    "task_sample_multipliers": {"21": 1.0, "132": 2.5},
+                }
+            },
+        )
+
+        self.assertEqual(
+            summary["warmup_training_summary"]["warmup_metrics"]["task_sample_multipliers"],
+            {"21": 1.0, "132": 2.5},
+        )
+        self.assertEqual(
+            summary["warmup_training_summary"]["warmup_metrics"]["average_epoch_task_sample_counts"]["132"],
+            3.0,
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

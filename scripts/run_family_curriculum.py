@@ -178,11 +178,13 @@ def main() -> int:
     if not (args.reuse_existing_stages and (out_dir / "eval_compare.json").exists()):
         _run_eval(stage_args, out_dir)
 
+    warmup_training_summary = _load_json(out_dir / "warmup_summary.json")
     eval_compare = _load_json(out_dir / "eval_compare.json")
     family_summary = build_family_run_summary(
         split,
         baseline_eval,
         eval_compare,
+        warmup_training_summary=warmup_training_summary,
         run_provenance={
             "split_manifest_path": str(split_manifest_path),
             "split_provenance": split_manifest_payload["split_provenance"],
@@ -648,6 +650,7 @@ def build_family_run_summary(
     split: TaskSplit,
     baseline_eval: dict[str, object],
     eval_compare: dict[str, object],
+    warmup_training_summary: dict[str, object] | None = None,
     run_provenance: dict[str, object] | None = None,
 ) -> dict[str, object]:
     task_groups = get_family_task_groups(split.family_name)
@@ -669,6 +672,8 @@ def build_family_run_summary(
     }
     if run_provenance is not None:
         summary["run_provenance"] = run_provenance
+    if warmup_training_summary is not None:
+        summary["warmup_training_summary"] = warmup_training_summary
     return summary
 
 
