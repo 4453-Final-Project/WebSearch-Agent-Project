@@ -32,6 +32,7 @@ class WarmupConfig:
     max_dom_chars: int = 480
     max_history_items: int = 3
     sample_weight_config: SampleWeightConfig = field(default_factory=SampleWeightConfig)
+    task_sample_multipliers: dict[int, float] = field(default_factory=dict)
 
 
 @dataclass(slots=True)
@@ -54,6 +55,7 @@ class WarmupSample:
     prompt: str
     response_text: str
     sample_weight: float
+    sampling_weight: float = 1.0
 
 
 def discover_episode_dirs(paths: Sequence[str | Path]) -> list[Path]:
@@ -99,11 +101,13 @@ def build_warmup_samples(
     *,
     model_system_prompt: str | None = None,
     sample_weight_config: SampleWeightConfig | None = None,
+    task_sample_multipliers: dict[int, float] | None = None,
 ) -> list[WarmupSample]:
     """Convert demo trajectories into supervised prompt/response pairs."""
 
     samples: list[WarmupSample] = []
     for trajectory in trajectories:
+        task_sampling_weight = max(0.0, (task_sample_multipliers or {}).get(trajectory.task_id, 1.0))
         for step, sample_weight in compute_step_sample_weights(
             trajectory,
             config=sample_weight_config,
@@ -113,6 +117,7 @@ def build_warmup_samples(
                     prompt=build_compact_warmup_prompt(step, model_system_prompt=model_system_prompt),
                     response_text=step.response_text,
                     sample_weight=sample_weight,
+                    sampling_weight=task_sampling_weight,
                 )
             )
     return samples
@@ -137,6 +142,7 @@ def run_supervised_warmup(policy, trajectories: Sequence[EpisodeTrajectory], con
         usable_trajectories,
         model_system_prompt=model_system_prompt,
         sample_weight_config=config.sample_weight_config,
+        task_sample_multipliers=config.task_sample_multipliers,
     )
     if not usable_trajectories or not samples:
         raise RuntimeError("Warmup requested but no usable demonstration trajectories were found.")
@@ -145,9 +151,7 @@ def run_supervised_warmup(policy, trajectories: Sequence[EpisodeTrajectory], con
     final_loss = 0.0
     accumulation_steps = max(1, config.gradient_accumulation_steps)
     for _ in range(config.epochs):
-        indices = list(range(len(samples)))
-        rng.shuffle(indices)
-        shuffled = [samples[index] for index in indices]
+        shuffled = _sample_epoch_warmup_samples(samples, rng)
         policy.zero_grad()
         pending_steps = 0
 
@@ -186,6 +190,26 @@ def run_supervised_warmup(policy, trajectories: Sequence[EpisodeTrajectory], con
         average_demo_reward=float(average_demo_reward),
         final_loss=final_loss,
     ).to_dict()
+
+
+def _sample_epoch_warmup_samples(
+    samples: Sequence[WarmupSample],
+    rng: random.Random,
+) -> list[WarmupSample]:
+    if not samples:
+        return []
+
+    sampling_weights = [max(0.0, sample.sampling_weight) for sample in samples]
+    if all(weight == 0.0 for weight in sampling_weights):
+        sampling_weights = [1.0] * len(samples)
+
+    if len(set(round(weight, 8) for weight in sampling_weights)) == 1:
+        indices = list(range(len(samples)))
+        rng.shuffle(indices)
+        return [samples[index] for index in indices]
+
+    sampled_indices = rng.choices(range(len(samples)), weights=sampling_weights, k=len(samples))
+    return [samples[index] for index in sampled_indices]
 
 
 def build_compact_warmup_prompt(step, *, model_system_prompt: str | None = None) -> str:

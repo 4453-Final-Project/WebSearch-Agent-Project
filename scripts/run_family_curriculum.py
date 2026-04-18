@@ -72,6 +72,12 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--warmup-epochs", type=int, default=1)
     parser.add_argument("--warmup-batch-size", type=int, default=1)
     parser.add_argument("--warmup-gradient-accumulation-steps", type=int, default=4)
+    parser.add_argument(
+        "--warmup-task-group-sample-multiplier",
+        action="append",
+        default=[],
+        help="Optional warmup oversampling multipliers like site_gitlab=2.0.",
+    )
     parser.add_argument("--groups-per-task", type=int, default=2)
     parser.add_argument(
         "--task-group-groups-per-task",
@@ -583,6 +589,12 @@ def _build_stage_args(args, split: TaskSplit, out_dir: Path, warmup_demo_dir: Pa
         warmup_epochs=args.warmup_epochs,
         warmup_batch_size=args.warmup_batch_size,
         warmup_gradient_accumulation_steps=args.warmup_gradient_accumulation_steps,
+        warmup_sample_multipliers=_resolve_family_task_group_float_overrides(
+            split.family_name,
+            split.warmup_task_ids,
+            default_value=1.0,
+            group_overrides=_get_group_float_overrides(args, "warmup_task_group_sample_multiplier"),
+        ),
         groups_per_task=_resolve_family_task_group_int_overrides(
             split.family_name,
             split.grpo_task_ids,
@@ -797,6 +809,15 @@ def _get_group_step_overrides(args, attr_name: str) -> dict[str, int]:
     return _get_group_int_overrides(args, attr_name)
 
 
+def _get_group_float_overrides(args, attr_name: str) -> dict[str, float]:
+    raw_value = getattr(args, attr_name, None)
+    if not raw_value:
+        return {}
+    if isinstance(raw_value, dict):
+        return {str(name): float(value) for name, value in raw_value.items()}
+    return _parse_group_float_override_entries(raw_value, subject_name="task group")
+
+
 def _get_group_int_overrides(args, attr_name: str) -> dict[str, int]:
     raw_value = getattr(args, attr_name, None)
     if not raw_value:
@@ -830,6 +851,30 @@ def _parse_group_int_override_entries(entries: list[str], *, subject_name: str) 
     return overrides
 
 
+def _parse_group_float_override_entries(entries: list[str], *, subject_name: str) -> dict[str, float]:
+    overrides: dict[str, float] = {}
+    for entry in entries:
+        if "=" not in entry:
+            raise ValueError(f"Invalid {subject_name} multiplier override {entry!r}; expected NAME=MULTIPLIER.")
+        name, value_text = entry.split("=", 1)
+        name = name.strip()
+        value_text = value_text.strip()
+        if not name:
+            raise ValueError(f"Invalid {subject_name} multiplier override {entry!r}; missing name.")
+        try:
+            value = float(value_text)
+        except ValueError as exc:
+            raise ValueError(
+                f"Invalid {subject_name} multiplier override {entry!r}; multiplier must be numeric."
+            ) from exc
+        if value <= 0.0:
+            raise ValueError(
+                f"Invalid {subject_name} multiplier override {entry!r}; multiplier must be positive."
+            )
+        overrides[name] = value
+    return overrides
+
+
 def _resolve_family_task_group_step_overrides(
     family_name: str,
     task_ids: tuple[int, ...] | list[int],
@@ -845,6 +890,21 @@ def _resolve_family_task_group_step_overrides(
     )
 
 
+def _resolve_family_task_group_float_overrides(
+    family_name: str,
+    task_ids: tuple[int, ...] | list[int],
+    *,
+    default_value: float,
+    group_overrides: dict[str, float],
+) -> dict[int, float]:
+    return _resolve_family_task_group_numeric_overrides(
+        family_name,
+        task_ids,
+        default_value=default_value,
+        group_overrides=group_overrides,
+    )
+
+
 def _resolve_family_task_group_int_overrides(
     family_name: str,
     task_ids: tuple[int, ...] | list[int],
@@ -852,6 +912,21 @@ def _resolve_family_task_group_int_overrides(
     default_value: int,
     group_overrides: dict[str, int],
 ) -> dict[int, int]:
+    return _resolve_family_task_group_numeric_overrides(
+        family_name,
+        task_ids,
+        default_value=default_value,
+        group_overrides=group_overrides,
+    )
+
+
+def _resolve_family_task_group_numeric_overrides(
+    family_name: str,
+    task_ids: tuple[int, ...] | list[int],
+    *,
+    default_value: int | float,
+    group_overrides: dict[str, int | float],
+) -> dict[int, int | float]:
     if not group_overrides:
         return {}
     task_groups = get_family_task_groups(family_name)
@@ -862,7 +937,7 @@ def _resolve_family_task_group_int_overrides(
         )
 
     task_ids = tuple(int(task_id) for task_id in task_ids)
-    overrides: dict[int, int] = {}
+    overrides: dict[int, int | float] = {}
     for task_id in task_ids:
         resolved_value = default_value
         for group_name, group_value in group_overrides.items():

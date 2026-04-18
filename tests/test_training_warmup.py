@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import random
 import sys
 import unittest
 from pathlib import Path
@@ -13,7 +14,12 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from src.training.warmup import WarmupConfig, build_warmup_samples, run_supervised_warmup
+from src.training.warmup import (
+    WarmupConfig,
+    _sample_epoch_warmup_samples,
+    build_warmup_samples,
+    run_supervised_warmup,
+)
 from src.training.trajectory import SampleWeightConfig
 from tests.test_training_grpo import FakePolicy, make_episode
 
@@ -60,6 +66,40 @@ class WarmupHelpersTests(unittest.TestCase):
 
         self.assertGreater(tuned_samples[-1].sample_weight, default_samples[-1].sample_weight)
         self.assertAlmostEqual(sum(sample.sample_weight for sample in tuned_samples), 1.0, places=5)
+
+    def test_build_warmup_samples_assign_task_sampling_weights(self) -> None:
+        shopping = make_episode(seed=4, reward=1.0, success=True)
+        gitlab = make_episode(seed=5, reward=1.0, success=True)
+        shopping.task_id = 21
+        gitlab.task_id = 132
+
+        samples = build_warmup_samples(
+            [shopping, gitlab],
+            task_sample_multipliers={132: 3.0},
+        )
+
+        self.assertEqual(len(samples), 2)
+        self.assertEqual(samples[0].sampling_weight, 1.0)
+        self.assertEqual(samples[1].sampling_weight, 3.0)
+
+    def test_sample_epoch_warmup_samples_oversamples_weighted_tasks(self) -> None:
+        shopping = make_episode(seed=6, reward=1.0, success=True)
+        gitlab = make_episode(seed=7, reward=1.0, success=True)
+        shopping.task_id = 21
+        gitlab.task_id = 132
+        samples = build_warmup_samples(
+            [shopping, gitlab],
+            task_sample_multipliers={132: 4.0},
+        )
+
+        epoch_samples = _sample_epoch_warmup_samples(samples, random.Random(0))
+
+        self.assertEqual(len(epoch_samples), len(samples))
+        self.assertGreaterEqual(sum(1 for sample in epoch_samples if sample.sampling_weight == 4.0), 1)
+        self.assertGreater(
+            sum(sample.sampling_weight for sample in epoch_samples),
+            sum(sample.sampling_weight for sample in samples),
+        )
 
     def test_supervised_warmup_updates_policy(self) -> None:
         policy = FakePolicy()

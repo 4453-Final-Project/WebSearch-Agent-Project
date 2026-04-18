@@ -16,6 +16,7 @@ from scripts.run_family_curriculum import (
     _write_training_progress_audits,
     _build_stage_args,
     _get_family_requirement_status,
+    _get_group_float_overrides,
     _get_group_int_overrides,
     _get_group_step_overrides,
     _load_existing_eval_results,
@@ -24,6 +25,7 @@ from scripts.run_family_curriculum import (
     _load_split_from_manifest,
     _prepare_warmup_demos,
     _resolve_family_task_group_int_overrides,
+    _resolve_family_task_group_float_overrides,
     _resolve_family_task_group_step_overrides,
     _run_baseline_eval,
     _resolve_preflight_out_path,
@@ -76,6 +78,8 @@ class RunFamilyCurriculumTests(unittest.TestCase):
                 "site_gitlab=7",
                 "--warmup-demo-task-group-limit-per-task",
                 "site_gitlab=4",
+                "--warmup-task-group-sample-multiplier",
+                "site_gitlab=2.5",
             ]
         )
 
@@ -92,6 +96,7 @@ class RunFamilyCurriculumTests(unittest.TestCase):
         self.assertEqual(args.warmup_demo_task_group_episodes, ["site_gitlab=4"])
         self.assertEqual(args.warmup_demo_task_group_max_steps, ["site_gitlab=7"])
         self.assertEqual(args.warmup_demo_task_group_limit_per_task, ["site_gitlab=4"])
+        self.assertEqual(args.warmup_task_group_sample_multiplier, ["site_gitlab=2.5"])
 
     def test_get_group_step_overrides_parses_cli_entries(self) -> None:
         args = build_arg_parser().parse_args(
@@ -121,6 +126,20 @@ class RunFamilyCurriculumTests(unittest.TestCase):
 
         self.assertEqual(overrides, {"site_gitlab": 4, "judge_free": 3})
 
+    def test_get_group_float_overrides_parses_cli_entries(self) -> None:
+        args = build_arg_parser().parse_args(
+            [
+                "--warmup-task-group-sample-multiplier",
+                "site_gitlab=2.5",
+                "--warmup-task-group-sample-multiplier",
+                "site_reddit=1.5",
+            ]
+        )
+
+        overrides = _get_group_float_overrides(args, "warmup_task_group_sample_multiplier")
+
+        self.assertEqual(overrides, {"site_gitlab": 2.5, "site_reddit": 1.5})
+
     def test_resolve_family_task_group_step_overrides_uses_max_matching_budget(self) -> None:
         overrides = _resolve_family_task_group_step_overrides(
             "bootstrap41",
@@ -146,6 +165,19 @@ class RunFamilyCurriculumTests(unittest.TestCase):
         self.assertEqual(overrides[132], 4)
         self.assertEqual(overrides[133], 4)
         self.assertEqual(overrides[134], 4)
+
+    def test_resolve_family_task_group_float_overrides_uses_max_matching_value(self) -> None:
+        overrides = _resolve_family_task_group_float_overrides(
+            "bootstrap41",
+            (21, 132, 133, 134),
+            default_value=1.0,
+            group_overrides={"site_gitlab": 2.5, "judge_free": 1.5},
+        )
+
+        self.assertEqual(overrides[21], 1.5)
+        self.assertEqual(overrides[132], 2.5)
+        self.assertEqual(overrides[133], 2.5)
+        self.assertEqual(overrides[134], 2.5)
 
     def test_resolve_preflight_out_path_uses_explicit_path(self) -> None:
         args = build_arg_parser().parse_args(["--preflight-out", "C:\\tmp\\preflight.json"])
@@ -668,6 +700,29 @@ class RunFamilyCurriculumTests(unittest.TestCase):
 
         self.assertEqual(stage_args.groups_per_task, {134: 4})
         self.assertEqual(stage_args.warmup_demo_limit_per_task, {132: 4})
+
+    def test_build_stage_args_applies_group_specific_warmup_sample_multipliers(self) -> None:
+        split = TaskSplit(
+            family_name="bootstrap41",
+            task_ids=(21, 132, 134),
+            warmup_task_ids=(21, 132),
+            grpo_task_ids=(134,),
+            holdout_task_ids=(),
+            eval_task_ids=(21, 132, 134),
+            split_seed=42,
+        )
+        args = build_arg_parser().parse_args(
+            [
+                "--family",
+                "bootstrap41",
+                "--warmup-task-group-sample-multiplier",
+                "site_gitlab=2.5",
+            ]
+        )
+
+        stage_args = _build_stage_args(args, split, Path("C:\\tmp\\out"), Path("C:\\tmp\\demos"))
+
+        self.assertEqual(stage_args.warmup_sample_multipliers, {132: 2.5})
 
     def test_run_baseline_eval_applies_group_specific_max_steps(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:

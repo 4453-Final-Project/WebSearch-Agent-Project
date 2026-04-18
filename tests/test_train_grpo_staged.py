@@ -20,6 +20,7 @@ from scripts.train_grpo_staged import (
     _resolve_task_groups_per_task,
     _resolve_task_max_steps,
     _resolve_warmup_demo_limits,
+    _resolve_warmup_sample_multipliers,
     _run_collect,
     _select_warmup_trajectories,
 )
@@ -146,6 +147,13 @@ class TrainGrpoStagedTests(unittest.TestCase):
         overrides = _resolve_task_groups_per_task(args)
 
         self.assertEqual(overrides, {134: 4, 135: 5})
+
+    def test_resolve_warmup_sample_multipliers_parses_cli_entries(self) -> None:
+        args = Namespace(warmup_sample_multiplier_override=["132=2.5", "133=3.0"])
+
+        overrides = _resolve_warmup_sample_multipliers(args)
+
+        self.assertEqual(overrides, {132: 2.5, 133: 3.0})
 
     def test_select_warmup_trajectories_uses_per_task_limits(self) -> None:
         trajectories = [
@@ -277,6 +285,8 @@ class TrainGrpoStagedTests(unittest.TestCase):
                 "325=4",
                 "--task-groups-per-task",
                 "325=3",
+                "--warmup-sample-multiplier-override",
+                "325=2.5",
                 "--quantization-mode",
                 "bnb_4bit",
                 "--quant-compute-dtype",
@@ -299,6 +309,7 @@ class TrainGrpoStagedTests(unittest.TestCase):
         self.assertEqual(args.task_max_steps, ["325=8"])
         self.assertEqual(args.warmup_demo_limit_override, ["325=4"])
         self.assertEqual(args.task_groups_per_task, ["325=3"])
+        self.assertEqual(args.warmup_sample_multiplier_override, ["325=2.5"])
         self.assertEqual(args.quant_compute_dtype, "float16")
         self.assertEqual(args.quant_type, "nf4")
         self.assertFalse(args.quant_use_double_quant)

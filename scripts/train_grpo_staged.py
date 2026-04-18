@@ -81,6 +81,12 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--warmup-epochs", type=int, default=1)
     parser.add_argument("--warmup-batch-size", type=int, default=1)
     parser.add_argument("--warmup-gradient-accumulation-steps", type=int, default=4)
+    parser.add_argument(
+        "--warmup-sample-multiplier-override",
+        action="append",
+        default=[],
+        help="Optional per-task warmup oversampling multipliers like 133=2.0. Repeat to set multiple tasks.",
+    )
     parser.add_argument("--groups-per-task", type=int, default=5)
     parser.add_argument(
         "--task-groups-per-task",
@@ -170,6 +176,7 @@ def _run_warmup(args, out_dir: Path) -> int:
             success_only=True,
             shuffle_seed=args.seed,
             sample_weight_config=_build_sample_weight_config(args),
+            task_sample_multipliers=_resolve_warmup_sample_multipliers(args),
         ),
     )
     adapter_dir = out_dir / "warmup_adapter"
@@ -509,6 +516,15 @@ def _resolve_task_groups_per_task(args) -> dict[int, int]:
     return _parse_positive_override_entries(raw_value, subject_name="task id")
 
 
+def _resolve_warmup_sample_multipliers(args) -> dict[int, float]:
+    raw_value = getattr(args, "warmup_sample_multiplier_override", None)
+    if not raw_value:
+        return {}
+    if isinstance(raw_value, dict):
+        return {int(task_id): float(multiplier) for task_id, multiplier in raw_value.items()}
+    return _parse_positive_float_override_entries(raw_value, subject_name="task id")
+
+
 def _parse_positive_override_entries(entries: list[str], *, subject_name: str) -> dict[int, int]:
     overrides: dict[int, int] = {}
     for entry in entries:
@@ -525,6 +541,27 @@ def _parse_positive_override_entries(entries: list[str], *, subject_name: str) -
         if value <= 0:
             raise ValueError(
                 f"Invalid {subject_name} override {entry!r}; value must be positive."
+            )
+        overrides[name] = value
+    return overrides
+
+
+def _parse_positive_float_override_entries(entries: list[str], *, subject_name: str) -> dict[int, float]:
+    overrides: dict[int, float] = {}
+    for entry in entries:
+        if "=" not in entry:
+            raise ValueError(f"Invalid {subject_name} override {entry!r}; expected NAME=VALUE.")
+        name_text, value_text = entry.split("=", 1)
+        try:
+            name = int(name_text.strip())
+            value = float(value_text.strip())
+        except ValueError as exc:
+            raise ValueError(
+                f"Invalid {subject_name} override {entry!r}; expected integer task id and float multiplier."
+            ) from exc
+        if value <= 0.0:
+            raise ValueError(
+                f"Invalid {subject_name} override {entry!r}; multiplier must be positive."
             )
         overrides[name] = value
     return overrides
