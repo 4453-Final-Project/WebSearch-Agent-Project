@@ -86,9 +86,13 @@ class LocalLaunchersTests(unittest.TestCase):
         bootstrap41_qlora_gitlabcoverage_tmux = _read_local_script("run_qwen_bootstrap41_curriculum_qlora_gitlabcoverage_tmux.sh")
         bootstrap41_qlora_gitlabcoverage_cleandemos_tmux = _read_local_script("run_qwen_bootstrap41_curriculum_qlora_gitlabcoverage_cleandemos_tmux.sh")
         bootstrap41_qlora_gitlabcoverage_cleandemos_warmupoversample_tmux = _read_local_script("run_qwen_bootstrap41_curriculum_qlora_gitlabcoverage_cleandemos_warmupoversample_tmux.sh")
+        bootstrap44_qlora_tmux = _read_local_script("run_qwen_bootstrap44_curriculum_qlora_tmux.sh")
+        bootstrap44_qlora_gitlabcoverage_cleandemos_warmupoversample_tmux = _read_local_script("run_qwen_bootstrap44_curriculum_qlora_gitlabcoverage_cleandemos_warmupoversample_tmux.sh")
         web_mix88_qlora_tmux = _read_local_script("run_qwen_web_mix88_curriculum_qlora_tmux.sh")
         web_mix88_qlora_gitlabcoverage_tmux = _read_local_script("run_qwen_web_mix88_curriculum_qlora_gitlabcoverage_tmux.sh")
         web_mix88_qlora_gitlabcoverage_warmupoversample_tmux = _read_local_script("run_qwen_web_mix88_curriculum_qlora_gitlabcoverage_warmupoversample_tmux.sh")
+        web_mix91_qlora_tmux = _read_local_script("run_qwen_web_mix91_curriculum_qlora_tmux.sh")
+        web_mix91_qlora_gitlabcoverage_warmupoversample_tmux = _read_local_script("run_qwen_web_mix91_curriculum_qlora_gitlabcoverage_warmupoversample_tmux.sh")
 
         self.assertIn('OUT_DIR="${RUN_OUT_DIR:-$WORKSPACE_ROOT/outputs/qwen_shopping_full_curriculum_v3_balanced}"', shopping_full_tmux)
         self.assertIn('TMUX_SESSION_PATH="$OUT_DIR/tmux_session.txt"', shopping_full_tmux)
@@ -168,6 +172,24 @@ class LocalLaunchersTests(unittest.TestCase):
         self.assertIn('--warmup-task-group-sample-multiplier site_gitlab=2.5', bootstrap41_qlora_gitlabcoverage_cleandemos_warmupoversample_tmux)
         self.assertIn('run_qwen_bootstrap41_curriculum_qlora_gitlabcoverage_cleandemos_tmux.sh', bootstrap41_qlora_gitlabcoverage_cleandemos_warmupoversample_tmux)
 
+        self.assertIn('OUT_DIR="${RUN_OUT_DIR:-$WORKSPACE_ROOT/outputs/qwen_bootstrap44_curriculum_v1_qlora}"', bootstrap44_qlora_tmux)
+        self.assertIn('SESSION_NAME="${TMUX_SESSION_NAME:-qwen_bootstrap44_v1_qlora}"', bootstrap44_qlora_tmux)
+        self.assertIn('bootstrap44_curriculum_manifest.json', bootstrap44_qlora_tmux)
+        self.assertIn('--quantization-mode bnb_4bit', bootstrap44_qlora_tmux)
+        self.assertIn('export PYTHONUNBUFFERED=1', bootstrap44_qlora_tmux)
+        self.assertIn('exec python3 -u scripts/run_family_curriculum.py', bootstrap44_qlora_tmux)
+        self.assertIn('--family bootstrap44', bootstrap44_qlora_tmux)
+
+        self.assertIn('RUN_OUT_DIR="${RUN_OUT_DIR:-$WORKSPACE_ROOT/outputs/qwen_bootstrap44_curriculum_v2_qlora_gitlabcoverage_cleandemos_warmupoversample}"', bootstrap44_qlora_gitlabcoverage_cleandemos_warmupoversample_tmux)
+        self.assertIn('TMUX_SESSION_NAME="${TMUX_SESSION_NAME:-qwen_bootstrap44_v2_qlora_gitlabcoverage_cleandemos_warmupoversample}"', bootstrap44_qlora_gitlabcoverage_cleandemos_warmupoversample_tmux)
+        self.assertIn('--task-group-max-steps site_gitlab=8', bootstrap44_qlora_gitlabcoverage_cleandemos_warmupoversample_tmux)
+        self.assertIn('--warmup-demo-task-group-max-steps site_gitlab=8', bootstrap44_qlora_gitlabcoverage_cleandemos_warmupoversample_tmux)
+        self.assertIn('--task-group-groups-per-task site_gitlab=4', bootstrap44_qlora_gitlabcoverage_cleandemos_warmupoversample_tmux)
+        self.assertIn('--warmup-demo-task-group-episodes site_gitlab=4', bootstrap44_qlora_gitlabcoverage_cleandemos_warmupoversample_tmux)
+        self.assertIn('--warmup-demo-task-group-limit-per-task site_gitlab=4', bootstrap44_qlora_gitlabcoverage_cleandemos_warmupoversample_tmux)
+        self.assertIn('--warmup-task-group-sample-multiplier site_gitlab=2.5', bootstrap44_qlora_gitlabcoverage_cleandemos_warmupoversample_tmux)
+        self.assertIn('run_qwen_bootstrap44_curriculum_qlora_tmux.sh', bootstrap44_qlora_gitlabcoverage_cleandemos_warmupoversample_tmux)
+
         self.assertIn('OUT_DIR="${RUN_OUT_DIR:-$WORKSPACE_ROOT/outputs/qwen_web_mix88_curriculum_v1_qlora}"', web_mix88_qlora_tmux)
         self.assertIn('SESSION_NAME="${TMUX_SESSION_NAME:-qwen_web_mix88_v1_qlora}"', web_mix88_qlora_tmux)
         self.assertIn('web_mix88_curriculum_manifest.json', web_mix88_qlora_tmux)
@@ -189,6 +211,24 @@ class LocalLaunchersTests(unittest.TestCase):
         self.assertIn('TMUX_SESSION_NAME="${TMUX_SESSION_NAME:-qwen_web_mix88_v3_qlora_gitlabcoverage_warmupoversample}"', web_mix88_qlora_gitlabcoverage_warmupoversample_tmux)
         self.assertIn('--warmup-task-group-sample-multiplier site_gitlab=2.5', web_mix88_qlora_gitlabcoverage_warmupoversample_tmux)
         self.assertIn('run_qwen_web_mix88_curriculum_qlora_gitlabcoverage_tmux.sh', web_mix88_qlora_gitlabcoverage_warmupoversample_tmux)
+
+        self.assertIn('OUT_DIR="${RUN_OUT_DIR:-$WORKSPACE_ROOT/outputs/qwen_web_mix91_curriculum_v1_qlora}"', web_mix91_qlora_tmux)
+        self.assertIn('SESSION_NAME="${TMUX_SESSION_NAME:-qwen_web_mix91_v1_qlora}"', web_mix91_qlora_tmux)
+        self.assertIn('web_mix91_curriculum_manifest.json', web_mix91_qlora_tmux)
+        self.assertIn('--quantization-mode bnb_4bit', web_mix91_qlora_tmux)
+        self.assertIn('export PYTHONUNBUFFERED=1', web_mix91_qlora_tmux)
+        self.assertIn('exec python3 -u scripts/run_family_curriculum.py', web_mix91_qlora_tmux)
+        self.assertIn('--family web_mix91', web_mix91_qlora_tmux)
+
+        self.assertIn('RUN_OUT_DIR="${RUN_OUT_DIR:-$WORKSPACE_ROOT/outputs/qwen_web_mix91_curriculum_v2_qlora_gitlabcoverage_warmupoversample}"', web_mix91_qlora_gitlabcoverage_warmupoversample_tmux)
+        self.assertIn('TMUX_SESSION_NAME="${TMUX_SESSION_NAME:-qwen_web_mix91_v2_qlora_gitlabcoverage_warmupoversample}"', web_mix91_qlora_gitlabcoverage_warmupoversample_tmux)
+        self.assertIn('--task-group-max-steps site_gitlab=8', web_mix91_qlora_gitlabcoverage_warmupoversample_tmux)
+        self.assertIn('--warmup-demo-task-group-max-steps site_gitlab=8', web_mix91_qlora_gitlabcoverage_warmupoversample_tmux)
+        self.assertIn('--task-group-groups-per-task site_gitlab=4', web_mix91_qlora_gitlabcoverage_warmupoversample_tmux)
+        self.assertIn('--warmup-demo-task-group-episodes site_gitlab=4', web_mix91_qlora_gitlabcoverage_warmupoversample_tmux)
+        self.assertIn('--warmup-demo-task-group-limit-per-task site_gitlab=4', web_mix91_qlora_gitlabcoverage_warmupoversample_tmux)
+        self.assertIn('--warmup-task-group-sample-multiplier site_gitlab=2.5', web_mix91_qlora_gitlabcoverage_warmupoversample_tmux)
+        self.assertIn('run_qwen_web_mix91_curriculum_qlora_tmux.sh', web_mix91_qlora_gitlabcoverage_warmupoversample_tmux)
 
     def test_refresh_wrappers_exist_for_exact_full_and_bootstrap41_manifests(self) -> None:
         expected_files = (
