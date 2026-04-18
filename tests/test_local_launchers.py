@@ -328,6 +328,8 @@ class LocalLaunchersTests(unittest.TestCase):
             "refresh_bootstrap44_curriculum_manifest.ps1",
             "refresh_bootstrap44_current_stack_scorecard.sh",
             "refresh_bootstrap44_current_stack_scorecard.ps1",
+            "validate_bootstrap44_current_stack_scorecard.sh",
+            "validate_bootstrap44_current_stack_scorecard.ps1",
             "refresh_shopping_order_current_stack_scorecard.sh",
             "refresh_shopping_order_current_stack_scorecard.ps1",
             "refresh_shopping_order_curriculum_preflight.sh",
@@ -342,12 +344,16 @@ class LocalLaunchersTests(unittest.TestCase):
             "refresh_shopping_order_full_curriculum_manifest.ps1",
             "refresh_web_mix88_current_stack_scorecard.sh",
             "refresh_web_mix88_current_stack_scorecard.ps1",
+            "validate_web_mix88_current_stack_scorecard.sh",
+            "validate_web_mix88_current_stack_scorecard.ps1",
             "refresh_web_mix88_curriculum_manifest.sh",
             "refresh_web_mix88_curriculum_manifest.ps1",
             "refresh_web_mix91_curriculum_manifest.sh",
             "refresh_web_mix91_curriculum_manifest.ps1",
             "refresh_web_mix91_current_stack_scorecard.sh",
             "refresh_web_mix91_current_stack_scorecard.ps1",
+            "validate_web_mix91_current_stack_scorecard.sh",
+            "validate_web_mix91_current_stack_scorecard.ps1",
         )
 
         for filename in expected_files:
@@ -367,6 +373,17 @@ class LocalLaunchersTests(unittest.TestCase):
             self.assertIn("bootstrap44_current_stack_scorecard.json", script)
             self.assertIn("bootstrap44_current_stack_audit.json", script)
             self.assertIn("--audit-out", script)
+
+    def test_bootstrap44_current_stack_validation_wrappers_use_checked_in_scorecard(self) -> None:
+        bash_script = _read_local_script("validate_bootstrap44_current_stack_scorecard.sh")
+        powershell_script = _read_local_script("validate_bootstrap44_current_stack_scorecard.ps1")
+
+        for script in (bash_script, powershell_script):
+            self.assertIn("validate_expanded_family_stage_scorecard.py", script)
+            self.assertIn("bootstrap44_current_stack_scorecard.json", script)
+            self.assertIn("124", script)
+            self.assertIn("133", script)
+            self.assertIn("141", script)
 
     def test_order_current_stack_refresh_wrappers_use_checked_in_inputs(self) -> None:
         shopping_order_bash = _read_local_script("refresh_shopping_order_current_stack_scorecard.sh")
@@ -454,6 +471,18 @@ class LocalLaunchersTests(unittest.TestCase):
             self.assertIn("build_combined_family_stage_scorecard.py", script)
             self.assertIn("web_mix91_current_stack_scorecard_manifest.json", script)
 
+    def test_web_mix91_current_stack_validation_wrappers_use_checked_in_scorecard(self) -> None:
+        bash_script = _read_local_script("validate_web_mix91_current_stack_scorecard.sh")
+        powershell_script = _read_local_script("validate_web_mix91_current_stack_scorecard.ps1")
+
+        for script in (bash_script, powershell_script):
+            self.assertIn("validate_combined_family_stage_scorecard.py", script)
+            self.assertIn("web_mix91_current_stack_scorecard.json", script)
+            self.assertIn("124", script)
+            self.assertIn("133", script)
+            self.assertIn("141", script)
+            self.assertIn("204", script)
+
     def test_web_mix88_current_stack_refresh_wrappers_use_checked_in_manifest(self) -> None:
         bash_script = _read_local_script("refresh_web_mix88_current_stack_scorecard.sh")
         powershell_script = _read_local_script("refresh_web_mix88_current_stack_scorecard.ps1")
@@ -461,6 +490,18 @@ class LocalLaunchersTests(unittest.TestCase):
         for script in (bash_script, powershell_script):
             self.assertIn("build_combined_family_stage_scorecard.py", script)
             self.assertIn("web_mix88_current_stack_scorecard_manifest.json", script)
+
+    def test_web_mix88_current_stack_validation_wrappers_use_checked_in_scorecard(self) -> None:
+        bash_script = _read_local_script("validate_web_mix88_current_stack_scorecard.sh")
+        powershell_script = _read_local_script("validate_web_mix88_current_stack_scorecard.ps1")
+
+        for script in (bash_script, powershell_script):
+            self.assertIn("validate_combined_family_stage_scorecard.py", script)
+            self.assertIn("web_mix88_current_stack_scorecard.json", script)
+            self.assertIn("124", script)
+            self.assertIn("133", script)
+            self.assertIn("141", script)
+            self.assertIn("204", script)
 
     def test_order_family_refresh_wrappers_use_checked_in_outputs(self) -> None:
         shopping_order_bash = _read_local_script("refresh_shopping_order_curriculum_manifest.sh")
